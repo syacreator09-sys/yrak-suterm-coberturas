@@ -1,0 +1,31 @@
+{
+  "name": "@yrak/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.2",
+    "@yrak/ai-provider": "workspace:*",
+    "@yrak/assignments": "workspace:*",
+    "@yrak/competition": "workspace:*",
+    "@yrak/database": "workspace:*",
+    "@yrak/domain": "workspace:*",
+    "@yrak/eligibility": "workspace:*",
+    "@yrak/notifications": "workspace:*",
+    "@yrak/rotation": "workspace:*",
+    "hono": "^4.9.4",
+    "jose": "^6.1.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260806.0"
+  }
+}
