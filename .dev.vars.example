@@ -1,0 +1,8 @@
+# Copiar a apps/worker/.dev.vars para desarrollo local. Nunca confirmar valores reales.
+BOOTSTRAP_TOKEN=replace-with-long-random-token
+OPENAI_API_KEY=replace-with-openai-project-key
+CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
+CF_ACCESS_AUD=replace-with-access-application-audience
+
+# MCP: copiar a apps/mcp-server/.dev.vars
+MCP_SERVICE_TOKEN=replace-with-long-random-token
