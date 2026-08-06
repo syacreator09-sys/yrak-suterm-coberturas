@@ -1,0 +1,87 @@
+name: Deploy Enterprise Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de destino
+        required: true
+        type: choice
+        options: [staging, production]
+
+env:
+  PNPM_VERSION: 10.15.0
+  NODE_VERSION: 22
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+      - name: Render enterprise application config
+        run: pnpm tsx scripts/render-wrangler-enterprise.ts "${{ inputs.environment }}"
+        env:
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_D1_DATABASE_NAME: ${{ vars.CLOUDFLARE_D1_DATABASE_NAME }}
+          CLOUDFLARE_R2_BUCKET_NAME: ${{ vars.CLOUDFLARE_R2_BUCKET_NAME }}
+          CLOUDFLARE_QUEUE_NAME: ${{ vars.CLOUDFLARE_QUEUE_NAME }}
+          CLOUDFLARE_WORKER_NAME: ${{ vars.CLOUDFLARE_WORKER_NAME }}
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          CF_ACCESS_TEAM_DOMAIN: ${{ vars.CF_ACCESS_TEAM_DOMAIN }}
+          CF_ACCESS_AUD: ${{ vars.CF_ACCESS_AUD }}
+      - name: Render MCP config
+        run: pnpm tsx scripts/render-wrangler.ts mcp "${{ inputs.environment }}"
+        env:
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          CLOUDFLARE_D1_DATABASE_NAME: ${{ vars.CLOUDFLARE_D1_DATABASE_NAME }}
+          CLOUDFLARE_MCP_WORKER_NAME: ${{ vars.CLOUDFLARE_MCP_WORKER_NAME }}
+          MCP_ORGANIZATION_ID: ${{ vars.MCP_ORGANIZATION_ID }}
+          MCP_ALLOWED_HOSTNAME: ${{ vars.MCP_ALLOWED_HOSTNAME }}
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: d1 migrations apply DB --remote --config wrangler.generated.json
+      - name: Deploy enterprise Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/worker
+          command: deploy --config wrangler.generated.json
+          secrets: |
+            OPENAI_API_KEY
+            BOOTSTRAP_TOKEN
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BOOTSTRAP_TOKEN: ${{ secrets.BOOTSTRAP_TOKEN }}
+      - name: Deploy read-only MCP Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/mcp-server
+          command: deploy --config wrangler.generated.json
+          secrets: MCP_SERVICE_TOKEN
+        env:
+          MCP_SERVICE_TOKEN: ${{ secrets.MCP_SERVICE_TOKEN }}
+      - name: Smoke test
+        run: pnpm tsx scripts/smoke-test.ts
+        env:
+          APP_ORIGIN: ${{ vars.APP_ORIGIN }}
