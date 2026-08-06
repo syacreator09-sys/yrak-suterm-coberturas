@@ -18,6 +18,7 @@ import { operationRoutes } from './routes/operations.js';
 import { dataRoutes } from './routes/data.js';
 import { userRoutes } from './routes/users.js';
 import { channelRoutes } from './routes/channels.js';
+import { lifecycleRoutes } from './routes/lifecycle.js';
 
 export function createApp(): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
@@ -47,6 +48,7 @@ export function createApp(): Hono<AppBindings> {
   app.route('/api/v1', dataRoutes);
   app.route('/api/v1', userRoutes);
   app.route('/api/v1', channelRoutes);
+  app.route('/api/v1', lifecycleRoutes);
 
   app.notFound((context) => context.json({ error: 'NOT_FOUND' }, 404));
   app.onError((error, context) => {
