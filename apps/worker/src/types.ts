@@ -36,6 +36,7 @@ export interface Env {
   ENVIRONMENT: 'development' | 'test' | 'staging' | 'production';
   APP_ORIGIN: string;
   EMAIL_FROM: string;
+  BOOTSTRAP_TOKEN?: string;
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
 }
