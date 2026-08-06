@@ -14,12 +14,20 @@ import { coverageRoutes } from './routes/coverages.js';
 import { competitionRoutes } from './routes/competitions.js';
 import { auditRoutes } from './routes/audit.js';
 import { intakeRoutes } from './routes/intake.js';
+import { operationRoutes } from './routes/operations.js';
 
 export function createApp(): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
   app.use('*', async (context, next) => {
     context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
     context.header('x-correlation-id', context.get('correlationId'));
+    context.header('x-content-type-options', 'nosniff');
+    context.header('referrer-policy', 'no-referrer');
+    context.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+    context.header(
+      'content-security-policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'",
+    );
     await next();
   });
   app.route('/', healthRoutes);
@@ -35,6 +43,7 @@ export function createApp(): Hono<AppBindings> {
   app.route('/api/v1', competitionRoutes);
   app.route('/api/v1', auditRoutes);
   app.route('/api/v1', intakeRoutes);
+  app.route('/api/v1', operationRoutes);
 
   app.notFound((context) => context.json({ error: 'NOT_FOUND' }, 404));
   app.onError((error, context) => {
