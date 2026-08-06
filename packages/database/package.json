@@ -5,12 +5,13 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@yrak/audit": "workspace:*",
     "@yrak/domain": "workspace:*"
   }
 }

@@ -28,6 +28,12 @@ export async function recordScore(
   if (input.examScore < 0 || input.examScore > 100) {
     throw new DomainError('INVALID_EXAM_SCORE', 'La calificación debe estar entre 0 y 100');
   }
+  if (
+    input.criticalSectionScore !== undefined
+    && (input.criticalSectionScore < 0 || input.criticalSectionScore > 100)
+  ) {
+    throw new DomainError('INVALID_CRITICAL_SECTION_SCORE', 'La sección crítica debe estar entre 0 y 100');
+  }
   const previous = await env.DB.prepare(
     'SELECT id FROM competition_score_revisions WHERE candidate_id = ? ORDER BY created_at DESC LIMIT 1',
   )
@@ -57,7 +63,12 @@ export async function recordScore(
     entityType: 'COMPETITION_SCORE_REVISION',
     entityId: revisionId,
     action: previous ? 'SCORE_CORRECTED' : 'SCORE_RECORDED',
-    newValue: { examScore: input.examScore, criticalSectionScore: input.criticalSectionScore },
+    newValue: {
+      examScore: input.examScore,
+      ...(input.criticalSectionScore === undefined
+        ? {}
+        : { criticalSectionScore: input.criticalSectionScore }),
+    },
     reason: input.correctionReason ?? null,
     correlationId,
   });
@@ -73,16 +84,27 @@ export async function approveScoreRevision(
   const revision = await env.DB.prepare(`SELECT sr.id, sr.entered_by, cc.competition_id
     FROM competition_score_revisions sr
     JOIN competition_candidates cc ON cc.id = sr.candidate_id
-    WHERE sr.id = ?`)
-    .bind(revisionId)
+    JOIN competitions c ON c.id = cc.competition_id
+    JOIN coverage_cases cv ON cv.id = c.coverage_case_id
+    JOIN groups g ON g.id = cv.group_id
+    WHERE sr.id = ? AND g.organization_id = ?`)
+    .bind(revisionId, user.organizationId)
     .first<{ id: string; entered_by: string; competition_id: string }>();
   if (!revision) throw new DomainError('SCORE_REVISION_NOT_FOUND', 'No existe la revisión');
   if (revision.entered_by === user.id) {
     throw new DomainError('SECOND_APPROVER_REQUIRED', 'Quien capturó la calificación no puede aprobarla');
   }
-  await env.DB.prepare(
-    'UPDATE competition_score_revisions SET approved_by = ? WHERE id = ? AND approved_by IS NULL',
-  ).bind(user.id, revisionId).run();
+  const existing = await env.DB.prepare(
+    'SELECT id FROM competition_score_revision_approvals WHERE revision_id = ?',
+  )
+    .bind(revisionId)
+    .first<{ id: string }>();
+  if (existing) return;
+  await env.DB.prepare(`INSERT INTO competition_score_revision_approvals (
+    id, revision_id, approved_by, approved_at
+  ) VALUES (?, ?, ?, ?)`)
+    .bind(crypto.randomUUID(), revisionId, user.id, new Date().toISOString())
+    .run();
   await appendAudit(env, {
     organizationId: user.organizationId,
     actor: user,
@@ -122,8 +144,10 @@ export async function finalizeCompetition(
     FROM competition_candidates cc
     JOIN employees e ON e.id = cc.employee_id
     JOIN competition_score_revisions sr ON sr.id = (
-      SELECT sr2.id FROM competition_score_revisions sr2
-      WHERE sr2.candidate_id = cc.id AND sr2.approved_by IS NOT NULL
+      SELECT sr2.id
+      FROM competition_score_revisions sr2
+      JOIN competition_score_revision_approvals approval ON approval.revision_id = sr2.id
+      WHERE sr2.candidate_id = cc.id
       ORDER BY sr2.created_at DESC LIMIT 1
     )
     WHERE cc.competition_id = ? AND cc.eligibility_status = 'ELIGIBLE'
@@ -140,16 +164,23 @@ export async function finalizeCompetition(
     (candidate) => candidate.exam_score >= competition.minimum_score,
   );
   if (candidates.length === 0) {
-    throw new DomainError('NO_QUALIFIED_COMPETITION_CANDIDATE', 'Ningún candidato aprobado alcanza la calificación mínima');
+    throw new DomainError(
+      'NO_QUALIFIED_COMPETITION_CANDIDATE',
+      'Ningún candidato aprobado alcanza la calificación mínima',
+    );
   }
   const ranking = rankCandidates(
     candidates.map((candidate) => ({
       employeeId: candidate.employee_id as never,
       examScore: candidate.exam_score,
-      ...(candidate.critical_section_score === null ? {} : { criticalSectionScore: candidate.critical_section_score }),
+      ...(candidate.critical_section_score === null
+        ? {}
+        : { criticalSectionScore: candidate.critical_section_score }),
       seniorityDate: candidate.seniority_date,
     })),
-    JSON.parse(competition.tie_breaker_rules_json),
+    JSON.parse(competition.tie_breaker_rules_json) as Array<{
+      type: 'CRITICAL_SECTION' | 'SENIORITY' | 'EMPLOYEE_ID';
+    }>,
   );
   const winner = ranking[0];
   if (!winner) throw new DomainError('NO_COMPETITION_WINNER', 'No fue posible determinar ganador');
@@ -167,19 +198,37 @@ export async function finalizeCompetition(
       id, coverage_case_id, employee_id, base_level_id, target_level_id, chain_order,
       starts_at, ends_at, status
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PROPOSED')`)
-      .bind(assignmentId, competition.coverage_case_id, winner.employeeId, employee.base_level_id, competition.target_level_id, competition.starts_at, competition.ends_at),
+      .bind(
+        assignmentId,
+        competition.coverage_case_id,
+        winner.employeeId,
+        employee.base_level_id,
+        competition.target_level_id,
+        competition.starts_at,
+        competition.ends_at,
+      ),
     env.DB.prepare(`INSERT INTO approvals (
       id, entity_type, entity_id, action, status, requested_by
     ) VALUES (?, 'COVERAGE_CASE', ?, 'APPROVE_COMPETITION_RESULT', 'PENDING', ?)`)
       .bind(approvalId, competition.coverage_case_id, user.id),
-    env.DB.prepare("UPDATE competitions SET status = 'RESULT_PROVISIONAL', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(competitionId),
-    env.DB.prepare("UPDATE coverage_cases SET status = 'PENDING_APPROVAL', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(competition.coverage_case_id),
+    env.DB.prepare(
+      "UPDATE competitions SET status = 'RESULT_PROVISIONAL', version = version + 1, updated_at = datetime('now') WHERE id = ?",
+    ).bind(competitionId),
+    env.DB.prepare(
+      "UPDATE coverage_cases SET status = 'PENDING_APPROVAL', version = version + 1, updated_at = datetime('now') WHERE id = ?",
+    ).bind(competition.coverage_case_id),
   ];
   for (const candidate of candidates) {
     const rank = ranking.find((item) => item.employeeId === candidate.employee_id)?.rank;
     statements.push(
-      env.DB.prepare('UPDATE competition_candidates SET result_status = ? WHERE id = ?')
-        .bind(candidate.employee_id === winner.employeeId ? 'WINNER' : rank === 2 ? 'RUNNER_UP' : 'NOT_SELECTED', candidate.candidate_id),
+      env.DB.prepare('UPDATE competition_candidates SET result_status = ? WHERE id = ?').bind(
+        candidate.employee_id === winner.employeeId
+          ? 'WINNER'
+          : rank === 2
+            ? 'RUNNER_UP'
+            : 'NOT_SELECTED',
+        candidate.candidate_id,
+      ),
     );
   }
   await env.DB.batch(statements);

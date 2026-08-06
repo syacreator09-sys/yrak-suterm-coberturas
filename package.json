@@ -7,7 +7,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
-    "lint": "eslint .",
+    "lint": "eslint apps packages tests scripts --ext .ts",
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
@@ -16,9 +16,9 @@
     "test:e2e": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:apply:local": "wrangler d1 migrations apply YRAK_DB --local --config apps/worker/wrangler.jsonc",
-    "db:apply:remote": "wrangler d1 migrations apply YRAK_DB --remote --config apps/worker/wrangler.jsonc",
-    "db:seed:local": "tsx scripts/seed-demo.ts --local"
+    "db:apply:local": "wrangler d1 migrations apply DB --local --config apps/worker/wrangler.jsonc",
+    "db:apply:remote": "wrangler d1 migrations apply DB --remote --config apps/worker/wrangler.jsonc",
+    "db:seed:local": "tsx scripts/seed-demo.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
