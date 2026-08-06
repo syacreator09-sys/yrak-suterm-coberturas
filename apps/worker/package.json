@@ -17,6 +17,7 @@
     "@yrak/ai-provider": "workspace:*",
     "@yrak/assignments": "workspace:*",
     "@yrak/competition": "workspace:*",
+    "@yrak/csv": "workspace:*",
     "@yrak/database": "workspace:*",
     "@yrak/domain": "workspace:*",
     "@yrak/eligibility": "workspace:*",
