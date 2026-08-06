@@ -19,25 +19,10 @@ export type CoverageCaseStatus =
   | 'DISPUTED';
 
 export type AssignmentStatus =
-  | 'PROPOSED'
-  | 'APPROVED'
-  | 'SCHEDULED'
-  | 'ACTIVE'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'REPLACED';
+  'PROPOSED' | 'APPROVED' | 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'REPLACED';
 
 export type AvailabilityStatus =
-  | 'AVAILABLE'
-  | 'UNAVAILABLE'
-  | 'RESERVED'
-  | 'ASSIGNED'
-  | 'SUSPENDED';
+  'AVAILABLE' | 'UNAVAILABLE' | 'RESERVED' | 'ASSIGNED' | 'SUSPENDED';
 
 export type RequirementEvaluationStatus =
-  | 'COMPLIANT'
-  | 'MISSING'
-  | 'EXPIRED'
-  | 'PENDING'
-  | 'REJECTED'
-  | 'NOT_APPLICABLE';
+  'COMPLIANT' | 'MISSING' | 'EXPIRED' | 'PENDING' | 'REJECTED' | 'NOT_APPLICABLE';

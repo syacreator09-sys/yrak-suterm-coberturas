@@ -30,14 +30,16 @@ export async function createIntakeDraft(
     throw new Error('No existe contenido compatible para crear borrador');
   }
   const id = crypto.randomUUID();
-  await env.DB.prepare(`INSERT INTO intake_drafts (
+  await env.DB.prepare(
+    `INSERT INTO intake_drafts (
     id, organization_id, attachment_id, source_type, draft_json, status
   ) VALUES (?, ?, ?, ?, ?, 'REVIEW_PENDING')
   ON CONFLICT(attachment_id) DO UPDATE SET
     draft_json = excluded.draft_json,
     source_type = excluded.source_type,
     status = 'REVIEW_PENDING',
-    updated_at = datetime('now')`)
+    updated_at = datetime('now')`,
+  )
     .bind(id, input.organizationId, input.attachmentId, draft.source, JSON.stringify(draft))
     .run();
   return { id, draft };

@@ -21,7 +21,10 @@ export function planCoverageChain(input: ChainPlanInput): CoverageChainStep[] {
 
   while (true) {
     if (visited.has(target)) {
-      throw new DomainError('CYCLIC_LEVEL_TRANSITION', 'Las transiciones de niveles contienen un ciclo');
+      throw new DomainError(
+        'CYCLIC_LEVEL_TRANSITION',
+        'Las transiciones de niveles contienen un ciclo',
+      );
     }
     visited.add(target);
     const transition = activeTransitions.find((candidate) => candidate.targetLevelId === target);
@@ -36,9 +39,13 @@ export function planCoverageChain(input: ChainPlanInput): CoverageChainStep[] {
   }
 
   if (steps.length === 0) {
-    throw new DomainError('NO_AUTHORIZED_LEVEL_TRANSITION', 'No existe nivel autorizado para cubrir la vacante', {
-      vacantLevelId: input.vacantLevelId,
-    });
+    throw new DomainError(
+      'NO_AUTHORIZED_LEVEL_TRANSITION',
+      'No existe nivel autorizado para cubrir la vacante',
+      {
+        vacantLevelId: input.vacantLevelId,
+      },
+    );
   }
   return steps;
 }

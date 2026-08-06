@@ -18,7 +18,8 @@ export type ProcessingMessage = AttachmentProcessingMessage | OutboxProcessingMe
 export interface EmailSenderBinding {
   send(payload: {
     from: string | { email: string; name?: string };
-    to: string | { email: string; name?: string } | Array<string | { email: string; name?: string }>;
+    to:
+      string | { email: string; name?: string } | Array<string | { email: string; name?: string }>;
     subject: string;
     text: string;
     html?: string;

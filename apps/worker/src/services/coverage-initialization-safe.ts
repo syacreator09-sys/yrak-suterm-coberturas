@@ -30,8 +30,10 @@ export async function initializeSafeRotationCase(
     input.sourceLevelId,
     input.targetLevelId,
   );
-  const queue = await env.DB.prepare(`SELECT employee_id, queue_position, availability
-    FROM rotation_queue_entries WHERE pool_id = ? ORDER BY queue_position`)
+  const queue = await env.DB.prepare(
+    `SELECT employee_id, queue_position, availability
+    FROM rotation_queue_entries WHERE pool_id = ? ORDER BY queue_position`,
+  )
     .bind(poolId)
     .all<QueueRow>();
 
@@ -80,60 +82,66 @@ export async function initializeSafeRotationCase(
   const assignmentId = crypto.randomUUID();
   const approvalId = crypto.randomUUID();
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO temporary_assignments (
+    env.DB.prepare(
+      `INSERT INTO temporary_assignments (
       id, coverage_case_id, employee_id, base_level_id, target_level_id, chain_order,
       starts_at, ends_at, status
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PROPOSED')`)
-      .bind(
-        assignmentId,
-        input.caseId,
-        selected.employee_id,
-        input.sourceLevelId,
-        input.targetLevelId,
-        input.startsAt,
-        input.endsAt,
-      ),
-    env.DB.prepare(`UPDATE rotation_queue_entries
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PROPOSED')`,
+    ).bind(
+      assignmentId,
+      input.caseId,
+      selected.employee_id,
+      input.sourceLevelId,
+      input.targetLevelId,
+      input.startsAt,
+      input.endsAt,
+    ),
+    env.DB.prepare(
+      `UPDATE rotation_queue_entries
       SET availability = 'RESERVED', version = version + 1, updated_at = datetime('now')
-      WHERE pool_id = ? AND employee_id = ? AND availability = 'AVAILABLE'`)
-      .bind(poolId, selected.employee_id),
+      WHERE pool_id = ? AND employee_id = ? AND availability = 'AVAILABLE'`,
+    ).bind(poolId, selected.employee_id),
     ...skipped.map((candidate) =>
-      env.DB.prepare(`INSERT INTO rotation_events (
+      env.DB.prepare(
+        `INSERT INTO rotation_events (
         id, pool_id, employee_id, coverage_case_id, event_type,
         previous_position, new_position, reason, created_by
-      ) VALUES (?, ?, ?, ?, 'SKIPPED', ?, ?, ?, ?)`)
-        .bind(
-          crypto.randomUUID(),
-          poolId,
-          candidate.employeeId,
-          input.caseId,
-          candidate.position,
-          candidate.position,
-          candidate.reason,
-          user.id,
-        ),
-    ),
-    env.DB.prepare(`INSERT INTO rotation_events (
-      id, pool_id, employee_id, coverage_case_id, event_type,
-      previous_position, new_position, reason, created_by
-    ) VALUES (?, ?, ?, ?, 'RESERVED', ?, ?, 'Candidato disponible reservado', ?)`)
-      .bind(
+      ) VALUES (?, ?, ?, ?, 'SKIPPED', ?, ?, ?, ?)`,
+      ).bind(
         crypto.randomUUID(),
         poolId,
-        selected.employee_id,
+        candidate.employeeId,
         input.caseId,
-        selected.queue_position,
-        selected.queue_position,
+        candidate.position,
+        candidate.position,
+        candidate.reason,
         user.id,
       ),
-    env.DB.prepare(`INSERT INTO approvals (
+    ),
+    env.DB.prepare(
+      `INSERT INTO rotation_events (
+      id, pool_id, employee_id, coverage_case_id, event_type,
+      previous_position, new_position, reason, created_by
+    ) VALUES (?, ?, ?, ?, 'RESERVED', ?, ?, 'Candidato disponible reservado', ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      poolId,
+      selected.employee_id,
+      input.caseId,
+      selected.queue_position,
+      selected.queue_position,
+      user.id,
+    ),
+    env.DB.prepare(
+      `INSERT INTO approvals (
       id, entity_type, entity_id, action, status, requested_by
-    ) VALUES (?, 'COVERAGE_CASE', ?, 'APPROVE_ROTATION_ASSIGNMENT', 'PENDING', ?)`)
-      .bind(approvalId, input.caseId, user.id),
-    env.DB.prepare(`UPDATE coverage_cases
+    ) VALUES (?, 'COVERAGE_CASE', ?, 'APPROVE_ROTATION_ASSIGNMENT', 'PENDING', ?)`,
+    ).bind(approvalId, input.caseId, user.id),
+    env.DB.prepare(
+      `UPDATE coverage_cases
       SET status = 'PENDING_APPROVAL', version = version + 1, updated_at = datetime('now')
-      WHERE id = ?`)
-      .bind(input.caseId),
+      WHERE id = ?`,
+    ).bind(input.caseId),
   ]);
   await appendAudit(env, {
     organizationId: user.organizationId,
@@ -171,27 +179,32 @@ export async function initializeSafeCompetitionCase(
   },
 ): Promise<{ competitionId: string; eligibleCount: number; ineligibleCount: number }> {
   const competitionId = crypto.randomUUID();
-  const policy = await env.DB.prepare(`SELECT default_minimum_exam_score,
-      default_tie_breaker_rules_json FROM organization_policies WHERE organization_id = ?`)
+  const policy = await env.DB.prepare(
+    `SELECT default_minimum_exam_score,
+      default_tie_breaker_rules_json FROM organization_policies WHERE organization_id = ?`,
+  )
     .bind(user.organizationId)
     .first<{ default_minimum_exam_score: number; default_tie_breaker_rules_json: string }>();
   const tieBreakers =
     input.tieBreakers ??
     (JSON.parse(
-      policy?.default_tie_breaker_rules_json ??
-        '[{"type":"SENIORITY"},{"type":"EMPLOYEE_ID"}]',
+      policy?.default_tie_breaker_rules_json ?? '[{"type":"SENIORITY"},{"type":"EMPLOYEE_ID"}]',
     ) as Array<{ type: 'CRITICAL_SECTION' | 'SENIORITY' | 'EMPLOYEE_ID' }>);
   const minimumScore = input.minimumScore ?? policy?.default_minimum_exam_score ?? 0;
-  const required = await env.DB.prepare(`SELECT requirement_id, valid_for_entire_coverage
-    FROM target_level_requirements WHERE target_level_id = ? AND mandatory = 1`)
+  const required = await env.DB.prepare(
+    `SELECT requirement_id, valid_for_entire_coverage
+    FROM target_level_requirements WHERE target_level_id = ? AND mandatory = 1`,
+  )
     .bind(input.targetLevelId)
     .all<{ requirement_id: string; valid_for_entire_coverage: number }>();
   const requiredIds = (required.results ?? []).map((row) => row.requirement_id);
   const requireFullValidity = (required.results ?? []).some(
     (row) => row.valid_for_entire_coverage === 1,
   );
-  const employees = await env.DB.prepare(`SELECT id FROM employees
-    WHERE base_level_id = ? AND active = 1 ORDER BY seniority_date, employee_number`)
+  const employees = await env.DB.prepare(
+    `SELECT id FROM employees
+    WHERE base_level_id = ? AND active = 1 ORDER BY seniority_date, employee_number`,
+  )
     .bind(input.sourceLevelId)
     .all<{ id: string }>();
 
@@ -206,8 +219,10 @@ export async function initializeSafeCompetitionCase(
         endsAt: input.endsAt,
         excludeCoverageCaseId: input.caseId,
       }),
-      env.DB.prepare(`SELECT requirement_id, status, valid_until, evidence_attachment_id
-        FROM employee_requirements WHERE employee_id = ?`)
+      env.DB.prepare(
+        `SELECT requirement_id, status, valid_until, evidence_attachment_id
+        FROM employee_requirements WHERE employee_id = ?`,
+      )
         .bind(employee.id)
         .all<{
           requirement_id: string;
@@ -232,43 +247,46 @@ export async function initializeSafeCompetitionCase(
     const eligible = requirementResult.eligible && conflicts.length === 0;
     eligible ? eligibleCount++ : ineligibleCount++;
     statements.push(
-      env.DB.prepare(`INSERT INTO competition_candidates (
+      env.DB.prepare(
+        `INSERT INTO competition_candidates (
         id, competition_id, employee_id, eligibility_status, eligibility_details_json
-      ) VALUES (?, ?, ?, ?, ?)`)
-        .bind(
-          crypto.randomUUID(),
-          competitionId,
-          employee.id,
-          eligible ? 'ELIGIBLE' : 'INELIGIBLE',
-          JSON.stringify({
-            ...requirementResult,
-            eligible,
-            availabilityConflicts: conflicts,
-          }),
-        ),
+      ) VALUES (?, ?, ?, ?, ?)`,
+      ).bind(
+        crypto.randomUUID(),
+        competitionId,
+        employee.id,
+        eligible ? 'ELIGIBLE' : 'INELIGIBLE',
+        JSON.stringify({
+          ...requirementResult,
+          eligible,
+          availabilityConflicts: conflicts,
+        }),
+      ),
     );
   }
 
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO competitions (
+    env.DB.prepare(
+      `INSERT INTO competitions (
       id, coverage_case_id, target_level_id, registration_starts_at,
       registration_ends_at, exam_at, minimum_score, tie_breaker_rules_json, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`)
-      .bind(
-        competitionId,
-        input.caseId,
-        input.targetLevelId,
-        input.registrationStartsAt,
-        input.registrationEndsAt,
-        input.examAt,
-        minimumScore,
-        JSON.stringify(tieBreakers),
-      ),
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')`,
+    ).bind(
+      competitionId,
+      input.caseId,
+      input.targetLevelId,
+      input.registrationStartsAt,
+      input.registrationEndsAt,
+      input.examAt,
+      minimumScore,
+      JSON.stringify(tieBreakers),
+    ),
     ...statements,
-    env.DB.prepare(`UPDATE coverage_cases
+    env.DB.prepare(
+      `UPDATE coverage_cases
       SET status = 'COMPETITION_OPEN', version = version + 1, updated_at = datetime('now')
-      WHERE id = ?`)
-      .bind(input.caseId),
+      WHERE id = ?`,
+    ).bind(input.caseId),
   ]);
   await appendAudit(env, {
     organizationId: user.organizationId,

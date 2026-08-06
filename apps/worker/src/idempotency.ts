@@ -14,13 +14,13 @@ export function requireIdempotency(operation: string): MiddlewareHandler<AppBind
     }
     const user = context.get('user');
     const requestText = await context.req.raw.clone().text();
-    const requestHash = await sha256(
-      `${context.req.method}:${context.req.path}:${requestText}`,
-    );
-    const existing = await context.env.DB.prepare(`SELECT request_hash, response_json,
+    const requestHash = await sha256(`${context.req.method}:${context.req.path}:${requestText}`);
+    const existing = await context.env.DB.prepare(
+      `SELECT request_hash, response_json,
         status_code, expires_at
       FROM idempotency_keys
-      WHERE organization_id = ? AND operation = ? AND idempotency_key = ?`)
+      WHERE organization_id = ? AND operation = ? AND idempotency_key = ?`,
+    )
       .bind(user.organizationId, operation, key)
       .first<{
         request_hash: string;
@@ -46,9 +46,11 @@ export function requireIdempotency(operation: string): MiddlewareHandler<AppBind
 
     const claimId = crypto.randomUUID();
     try {
-      await context.env.DB.prepare(`INSERT INTO idempotency_keys (
+      await context.env.DB.prepare(
+        `INSERT INTO idempotency_keys (
         id, organization_id, operation, idempotency_key, request_hash, expires_at
-      ) VALUES (?, ?, ?, ?, ?, datetime('now', '+24 hours'))`)
+      ) VALUES (?, ?, ?, ?, ?, datetime('now', '+24 hours'))`,
+      )
         .bind(claimId, user.organizationId, operation, key, requestHash)
         .run();
     } catch {
@@ -60,8 +62,10 @@ export function requireIdempotency(operation: string): MiddlewareHandler<AppBind
       const statusCode = context.res.status;
       if (statusCode < 500) {
         const responseText = await context.res.clone().text();
-        await context.env.DB.prepare(`UPDATE idempotency_keys
-          SET response_json = ?, status_code = ? WHERE id = ?`)
+        await context.env.DB.prepare(
+          `UPDATE idempotency_keys
+          SET response_json = ?, status_code = ? WHERE id = ?`,
+        )
           .bind(responseText, statusCode, claimId)
           .run();
       } else {
@@ -70,9 +74,7 @@ export function requireIdempotency(operation: string): MiddlewareHandler<AppBind
           .run();
       }
     } catch (error) {
-      await context.env.DB.prepare('DELETE FROM idempotency_keys WHERE id = ?')
-        .bind(claimId)
-        .run();
+      await context.env.DB.prepare('DELETE FROM idempotency_keys WHERE id = ?').bind(claimId).run();
       throw error;
     }
   };

@@ -15,24 +15,30 @@ export async function recordScore(
     correctionReason?: string;
   },
 ): Promise<{ revisionId: string }> {
-  const candidate = await env.DB.prepare(`SELECT cc.id, c.coverage_case_id
+  const candidate = await env.DB.prepare(
+    `SELECT cc.id, c.coverage_case_id
     FROM competition_candidates cc
     JOIN competitions c ON c.id = cc.competition_id
     JOIN coverage_cases cv ON cv.id = c.coverage_case_id
     JOIN groups g ON g.id = cv.group_id
     WHERE cc.competition_id = ? AND cc.employee_id = ? AND cc.eligibility_status = 'ELIGIBLE'
-      AND g.organization_id = ?`)
+      AND g.organization_id = ?`,
+  )
     .bind(input.competitionId, input.employeeId, user.organizationId)
     .first<{ id: string; coverage_case_id: string }>();
-  if (!candidate) throw new DomainError('ELIGIBLE_CANDIDATE_NOT_FOUND', 'El candidato no es elegible');
+  if (!candidate)
+    throw new DomainError('ELIGIBLE_CANDIDATE_NOT_FOUND', 'El candidato no es elegible');
   if (input.examScore < 0 || input.examScore > 100) {
     throw new DomainError('INVALID_EXAM_SCORE', 'La calificación debe estar entre 0 y 100');
   }
   if (
-    input.criticalSectionScore !== undefined
-    && (input.criticalSectionScore < 0 || input.criticalSectionScore > 100)
+    input.criticalSectionScore !== undefined &&
+    (input.criticalSectionScore < 0 || input.criticalSectionScore > 100)
   ) {
-    throw new DomainError('INVALID_CRITICAL_SECTION_SCORE', 'La sección crítica debe estar entre 0 y 100');
+    throw new DomainError(
+      'INVALID_CRITICAL_SECTION_SCORE',
+      'La sección crítica debe estar entre 0 y 100',
+    );
   }
   const previous = await env.DB.prepare(
     'SELECT id FROM competition_score_revisions WHERE candidate_id = ? ORDER BY created_at DESC LIMIT 1',
@@ -43,10 +49,12 @@ export async function recordScore(
     throw new DomainError('CORRECTION_REASON_REQUIRED', 'La corrección requiere motivo');
   }
   const revisionId = crypto.randomUUID();
-  await env.DB.prepare(`INSERT INTO competition_score_revisions (
+  await env.DB.prepare(
+    `INSERT INTO competition_score_revisions (
     id, candidate_id, exam_score, critical_section_score, entered_by,
     supersedes_revision_id, correction_reason
-  ) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
     .bind(
       revisionId,
       candidate.id,
@@ -81,18 +89,23 @@ export async function approveScoreRevision(
   correlationId: string,
   revisionId: string,
 ): Promise<void> {
-  const revision = await env.DB.prepare(`SELECT sr.id, sr.entered_by, cc.competition_id
+  const revision = await env.DB.prepare(
+    `SELECT sr.id, sr.entered_by, cc.competition_id
     FROM competition_score_revisions sr
     JOIN competition_candidates cc ON cc.id = sr.candidate_id
     JOIN competitions c ON c.id = cc.competition_id
     JOIN coverage_cases cv ON cv.id = c.coverage_case_id
     JOIN groups g ON g.id = cv.group_id
-    WHERE sr.id = ? AND g.organization_id = ?`)
+    WHERE sr.id = ? AND g.organization_id = ?`,
+  )
     .bind(revisionId, user.organizationId)
     .first<{ id: string; entered_by: string; competition_id: string }>();
   if (!revision) throw new DomainError('SCORE_REVISION_NOT_FOUND', 'No existe la revisión');
   if (revision.entered_by === user.id) {
-    throw new DomainError('SECOND_APPROVER_REQUIRED', 'Quien capturó la calificación no puede aprobarla');
+    throw new DomainError(
+      'SECOND_APPROVER_REQUIRED',
+      'Quien capturó la calificación no puede aprobarla',
+    );
   }
   const existing = await env.DB.prepare(
     'SELECT id FROM competition_score_revision_approvals WHERE revision_id = ?',
@@ -100,9 +113,11 @@ export async function approveScoreRevision(
     .bind(revisionId)
     .first<{ id: string }>();
   if (existing) return;
-  await env.DB.prepare(`INSERT INTO competition_score_revision_approvals (
+  await env.DB.prepare(
+    `INSERT INTO competition_score_revision_approvals (
     id, revision_id, approved_by, approved_at
-  ) VALUES (?, ?, ?, ?)`)
+  ) VALUES (?, ?, ?, ?)`,
+  )
     .bind(crypto.randomUUID(), revisionId, user.id, new Date().toISOString())
     .run();
   await appendAudit(env, {
@@ -121,11 +136,13 @@ export async function finalizeCompetition(
   correlationId: string,
   competitionId: string,
 ): Promise<{ winnerEmployeeId: string; approvalId: string; ranking: unknown[] }> {
-  const competition = await env.DB.prepare(`SELECT c.id, c.coverage_case_id, c.target_level_id,
+  const competition = await env.DB.prepare(
+    `SELECT c.id, c.coverage_case_id, c.target_level_id,
       c.minimum_score, c.tie_breaker_rules_json, cv.starts_at, cv.ends_at, cv.group_id
     FROM competitions c JOIN coverage_cases cv ON cv.id = c.coverage_case_id
     JOIN groups g ON g.id = cv.group_id
-    WHERE c.id = ? AND g.organization_id = ?`)
+    WHERE c.id = ? AND g.organization_id = ?`,
+  )
     .bind(competitionId, user.organizationId)
     .first<{
       id: string;
@@ -139,7 +156,8 @@ export async function finalizeCompetition(
     }>();
   if (!competition) throw new DomainError('COMPETITION_NOT_FOUND', 'No existe el concurso');
 
-  const candidatesResult = await env.DB.prepare(`SELECT cc.id AS candidate_id, cc.employee_id,
+  const candidatesResult = await env.DB.prepare(
+    `SELECT cc.id AS candidate_id, cc.employee_id,
       e.seniority_date, sr.exam_score, sr.critical_section_score
     FROM competition_candidates cc
     JOIN employees e ON e.id = cc.employee_id
@@ -151,7 +169,8 @@ export async function finalizeCompetition(
       ORDER BY sr2.created_at DESC LIMIT 1
     )
     WHERE cc.competition_id = ? AND cc.eligibility_status = 'ELIGIBLE'
-      AND cc.accepted_participation = 1`)
+      AND cc.accepted_participation = 1`,
+  )
     .bind(competitionId)
     .all<{
       candidate_id: string;
@@ -194,23 +213,25 @@ export async function finalizeCompetition(
   const assignmentId = crypto.randomUUID();
   const approvalId = crypto.randomUUID();
   const statements: D1PreparedStatement[] = [
-    env.DB.prepare(`INSERT INTO temporary_assignments (
+    env.DB.prepare(
+      `INSERT INTO temporary_assignments (
       id, coverage_case_id, employee_id, base_level_id, target_level_id, chain_order,
       starts_at, ends_at, status
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PROPOSED')`)
-      .bind(
-        assignmentId,
-        competition.coverage_case_id,
-        winner.employeeId,
-        employee.base_level_id,
-        competition.target_level_id,
-        competition.starts_at,
-        competition.ends_at,
-      ),
-    env.DB.prepare(`INSERT INTO approvals (
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'PROPOSED')`,
+    ).bind(
+      assignmentId,
+      competition.coverage_case_id,
+      winner.employeeId,
+      employee.base_level_id,
+      competition.target_level_id,
+      competition.starts_at,
+      competition.ends_at,
+    ),
+    env.DB.prepare(
+      `INSERT INTO approvals (
       id, entity_type, entity_id, action, status, requested_by
-    ) VALUES (?, 'COVERAGE_CASE', ?, 'APPROVE_COMPETITION_RESULT', 'PENDING', ?)`)
-      .bind(approvalId, competition.coverage_case_id, user.id),
+    ) VALUES (?, 'COVERAGE_CASE', ?, 'APPROVE_COMPETITION_RESULT', 'PENDING', ?)`,
+    ).bind(approvalId, competition.coverage_case_id, user.id),
     env.DB.prepare(
       "UPDATE competitions SET status = 'RESULT_PROVISIONAL', version = version + 1, updated_at = datetime('now') WHERE id = ?",
     ).bind(competitionId),

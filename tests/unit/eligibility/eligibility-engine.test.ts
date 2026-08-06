@@ -12,7 +12,12 @@ describe('eligibility engine', () => {
       employeeId,
       requiredRequirementIds: [course, certificate],
       evaluations: [
-        { requirementId: certificate, status: 'COMPLIANT', validUntil: '2026-08-10', evidenceId: 'E1' },
+        {
+          requirementId: certificate,
+          status: 'COMPLIANT',
+          validUntil: '2026-08-10',
+          evidenceId: 'E1',
+        },
       ],
       coverageStartsAt: '2026-08-11',
       coverageEndsAt: '2026-08-20',

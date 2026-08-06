@@ -47,7 +47,9 @@ export function parseCsv(input: string): CsvRow[] {
   if (new Set(headers).size !== headers.length) throw new Error('CSV con encabezados duplicados');
   return rows.map((values, rowIndex) => {
     if (values.length !== headers.length) {
-      throw new Error(`La fila ${rowIndex + 2} tiene ${values.length} columnas; se esperaban ${headers.length}`);
+      throw new Error(
+        `La fila ${rowIndex + 2} tiene ${values.length} columnas; se esperaban ${headers.length}`,
+      );
     }
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
   });
@@ -58,7 +60,10 @@ function quote(value: unknown): string {
   return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function toCsv(headers: readonly string[], rows: readonly Record<string, unknown>[]): string {
+export function toCsv(
+  headers: readonly string[],
+  rows: readonly Record<string, unknown>[],
+): string {
   const lines = [headers.map(quote).join(',')];
   for (const row of rows) lines.push(headers.map((header) => quote(row[header])).join(','));
   return `\uFEFF${lines.join('\r\n')}\r\n`;

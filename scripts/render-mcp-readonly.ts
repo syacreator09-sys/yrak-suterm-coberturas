@@ -13,9 +13,7 @@ function required(name: string): string {
 const suffix = environment === 'production' ? 'production' : 'staging';
 const config = {
   $schema: '../../node_modules/wrangler/config-schema.json',
-  name:
-    process.env.CLOUDFLARE_MCP_WORKER_NAME?.trim() ||
-    `yrak-suterm-coberturas-mcp-${suffix}`,
+  name: process.env.CLOUDFLARE_MCP_WORKER_NAME?.trim() || `yrak-suterm-coberturas-mcp-${suffix}`,
   main: 'src/index.ts',
   compatibility_date: '2026-08-06',
   compatibility_flags: ['nodejs_compat'],

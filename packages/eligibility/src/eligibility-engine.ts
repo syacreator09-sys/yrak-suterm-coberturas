@@ -24,7 +24,9 @@ export interface EligibilityResult {
 }
 
 export function evaluateEligibility(input: EligibilityInput): EligibilityResult {
-  const byId = new Map(input.evaluations.map((evaluation) => [evaluation.requirementId, evaluation]));
+  const byId = new Map(
+    input.evaluations.map((evaluation) => [evaluation.requirementId, evaluation]),
+  );
   const validityBoundary = input.mustRemainValidForEntireCoverage
     ? input.coverageEndsAt
     : input.coverageStartsAt;
@@ -45,9 +47,9 @@ export function evaluateEligibility(input: EligibilityInput): EligibilityResult 
       continue;
     }
     if (
-      evaluation.status === 'EXPIRED'
-      || (evaluation.validUntil !== null
-        && new Date(evaluation.validUntil).getTime() < new Date(validityBoundary).getTime())
+      evaluation.status === 'EXPIRED' ||
+      (evaluation.validUntil !== null &&
+        new Date(evaluation.validUntil).getTime() < new Date(validityBoundary).getTime())
     ) {
       reasons.push({ requirementId, code: 'EXPIRED', messageKey: 'requirement.expired' });
     }

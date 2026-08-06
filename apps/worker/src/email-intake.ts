@@ -31,8 +31,10 @@ export async function processInboundEmail(
   message: ForwardableEmailMessage,
   env: Env,
 ): Promise<void> {
-  const channel = await env.DB.prepare(`SELECT organization_id
-    FROM organization_email_channels WHERE inbound_address = ? AND active = 1`)
+  const channel = await env.DB.prepare(
+    `SELECT organization_id
+    FROM organization_email_channels WHERE inbound_address = ? AND active = 1`,
+  )
     .bind(message.to.toLowerCase())
     .first<{ organization_id: string }>();
   if (!channel) {
@@ -49,9 +51,11 @@ export async function processInboundEmail(
     httpMetadata: { contentType: 'message/rfc822' },
     customMetadata: { from: message.from, to: message.to },
   });
-  await env.DB.prepare(`INSERT INTO messages (
+  await env.DB.prepare(
+    `INSERT INTO messages (
     id, organization_id, channel, direction, recipient, subject, body_text, status
-  ) VALUES (?, ?, 'EMAIL', 'INBOUND', ?, ?, ?, 'RECEIVED')`)
+  ) VALUES (?, ?, 'EMAIL', 'INBOUND', ?, ?, ?, 'RECEIVED')`,
+  )
     .bind(
       emailId,
       channel.organization_id,
@@ -68,10 +72,12 @@ export async function processInboundEmail(
     await env.EVIDENCE.put(bodyKey, bodyBytes, {
       httpMetadata: { contentType: 'text/plain; charset=utf-8' },
     });
-    await env.DB.prepare(`INSERT INTO attachments (
+    await env.DB.prepare(
+      `INSERT INTO attachments (
       id, organization_id, entity_type, entity_id, original_filename, mime_type,
       byte_size, sha256, r2_key, extraction_status, extracted_text
-    ) VALUES (?, ?, 'EMAIL', ?, 'email-body.txt', 'text/plain', ?, ?, ?, 'REVIEW_REQUIRED', ?)`)
+    ) VALUES (?, ?, 'EMAIL', ?, 'email-body.txt', 'text/plain', ?, ?, ?, 'REVIEW_REQUIRED', ?)`,
+    )
       .bind(
         bodyAttachmentId,
         channel.organization_id,
@@ -103,10 +109,12 @@ export async function processInboundEmail(
     const filename = (attachment.filename || 'attachment').replaceAll(/[^a-zA-Z0-9._-]/g, '_');
     const r2Key = `${base}-${attachmentId}-${filename}`;
     await env.EVIDENCE.put(r2Key, bytes, { httpMetadata: { contentType: mimeType } });
-    await env.DB.prepare(`INSERT INTO attachments (
+    await env.DB.prepare(
+      `INSERT INTO attachments (
       id, organization_id, entity_type, entity_id, original_filename, mime_type,
       byte_size, sha256, r2_key, extraction_status
-    ) VALUES (?, ?, 'EMAIL', ?, ?, ?, ?, ?, ?, 'PENDING')`)
+    ) VALUES (?, ?, 'EMAIL', ?, ?, ?, ?, ?, ?, 'PENDING')`,
+    )
       .bind(
         attachmentId,
         channel.organization_id,

@@ -7,14 +7,13 @@ import { requireIdempotency } from '../idempotency.js';
 import { createSafeCoverage } from '../services/coverage-creation-safe.js';
 import type { AppBindings } from '../types.js';
 
-async function claimDraft(
-  context: Context<AppBindings>,
-  draftId: string,
-): Promise<boolean> {
+async function claimDraft(context: Context<AppBindings>, draftId: string): Promise<boolean> {
   try {
-    await context.env.DB.prepare(`INSERT INTO intake_review_claims (
+    await context.env.DB.prepare(
+      `INSERT INTO intake_review_claims (
       draft_id, claimed_by, expires_at
-    ) VALUES (?, ?, datetime('now', '+15 minutes'))`)
+    ) VALUES (?, ?, datetime('now', '+15 minutes'))`,
+    )
       .bind(draftId, context.get('user').id)
       .run();
     return true;
@@ -30,13 +29,15 @@ safeIntakeRoutesV3.get(
   '/intake-drafts',
   requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'OPERATOR'),
   async (context) => {
-    const result = await context.env.DB.prepare(`SELECT d.id, d.attachment_id,
+    const result = await context.env.DB.prepare(
+      `SELECT d.id, d.attachment_id,
         d.source_type, d.draft_json, d.status, d.linked_coverage_case_id,
         d.created_at, d.updated_at, claim.claimed_by, claim.expires_at
       FROM intake_drafts d
       LEFT JOIN intake_review_claims claim ON claim.draft_id = d.id
       WHERE d.organization_id = ?
-      ORDER BY d.created_at DESC LIMIT 200`)
+      ORDER BY d.created_at DESC LIMIT 200`,
+    )
       .bind(context.get('user').organizationId)
       .all();
     return context.json({ items: result.results ?? [] });
@@ -74,9 +75,11 @@ safeIntakeRoutesV3.post(
   async (context) => {
     const user = context.get('user');
     const draftId = context.req.param('id');
-    const draft = await context.env.DB.prepare(`SELECT id, source_type
+    const draft = await context.env.DB.prepare(
+      `SELECT id, source_type
       FROM intake_drafts
-      WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`)
+      WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`,
+    )
       .bind(draftId, user.organizationId)
       .first<{ id: string; source_type: string }>();
     if (!draft) return context.json({ error: 'REVIEW_PENDING_DRAFT_NOT_FOUND' }, 404);
@@ -85,28 +88,22 @@ safeIntakeRoutesV3.post(
     }
 
     try {
-      const sourceMap: Record<
-        string,
-        'EMAIL' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'INTEGRATION'
-      > = {
+      const sourceMap: Record<string, 'EMAIL' | 'AUDIO' | 'IMAGE' | 'DOCUMENT' | 'INTEGRATION'> = {
         EMAIL: 'EMAIL',
         AUDIO: 'AUDIO',
         IMAGE: 'IMAGE',
         DOCUMENT: 'DOCUMENT',
       };
-      const coverage = await createSafeCoverage(
-        context.env,
-        user,
-        context.get('correlationId'),
-        {
-          ...context.req.valid('json'),
-          source: sourceMap[draft.source_type] ?? 'INTEGRATION',
-        },
-      );
-      const update = await context.env.DB.prepare(`UPDATE intake_drafts
+      const coverage = await createSafeCoverage(context.env, user, context.get('correlationId'), {
+        ...context.req.valid('json'),
+        source: sourceMap[draft.source_type] ?? 'INTEGRATION',
+      });
+      const update = await context.env.DB.prepare(
+        `UPDATE intake_drafts
         SET status = 'APPROVED', linked_coverage_case_id = ?, reviewed_by = ?,
             reviewed_at = datetime('now'), updated_at = datetime('now')
-        WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`)
+        WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`,
+      )
         .bind(String(coverage.caseId), user.id, draftId, user.organizationId)
         .run();
       if (Number((update.meta as { changes?: number } | undefined)?.changes ?? 0) !== 1) {
@@ -132,8 +129,10 @@ safeIntakeRoutesV3.post(
   async (context) => {
     const user = context.get('user');
     const draftId = context.req.param('id');
-    const exists = await context.env.DB.prepare(`SELECT id FROM intake_drafts
-      WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`)
+    const exists = await context.env.DB.prepare(
+      `SELECT id FROM intake_drafts
+      WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`,
+    )
       .bind(draftId, user.organizationId)
       .first();
     if (!exists) return context.json({ error: 'REVIEW_PENDING_DRAFT_NOT_FOUND' }, 404);
@@ -141,10 +140,12 @@ safeIntakeRoutesV3.post(
       return context.json({ error: 'DRAFT_ALREADY_CLAIMED' }, 409);
     }
     try {
-      const update = await context.env.DB.prepare(`UPDATE intake_drafts
+      const update = await context.env.DB.prepare(
+        `UPDATE intake_drafts
         SET status = 'REJECTED', reviewed_by = ?, reviewed_at = datetime('now'),
             updated_at = datetime('now')
-        WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`)
+        WHERE id = ? AND organization_id = ? AND status = 'REVIEW_PENDING'`,
+      )
         .bind(user.id, draftId, user.organizationId)
         .run();
       if (Number((update.meta as { changes?: number } | undefined)?.changes ?? 0) !== 1) {

@@ -89,7 +89,10 @@ export class WorkersAIProvider implements AIProvider {
     };
   }
 
-  public async extract<T>(_input: { prompt: string; content: string }, _schema: z.ZodType<T>): Promise<T> {
+  public async extract<T>(
+    _input: { prompt: string; content: string },
+    _schema: z.ZodType<T>,
+  ): Promise<T> {
     throw new Error('La extracción estructurada requiere un proveedor generativo');
   }
 
@@ -196,7 +199,10 @@ export class MockAIProvider implements AIProvider {
     return { text: this.transcription, confidence: 1, language: 'es' };
   }
 
-  public async extract<T>(_input: { prompt: string; content: string }, schema: z.ZodType<T>): Promise<T> {
+  public async extract<T>(
+    _input: { prompt: string; content: string },
+    schema: z.ZodType<T>,
+  ): Promise<T> {
     return schema.parse(this.structuredOutput);
   }
 

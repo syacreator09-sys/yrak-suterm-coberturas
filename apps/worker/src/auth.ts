@@ -18,7 +18,13 @@ async function loadUser(env: Env, subject: string): Promise<AuthenticatedUser | 
     'SELECT id, employee_id, organization_id, email, display_name FROM app_users WHERE external_subject = ? AND active = 1',
   )
     .bind(subject)
-    .first<{ id: string; employee_id: string | null; organization_id: string; email: string; display_name: string }>();
+    .first<{
+      id: string;
+      employee_id: string | null;
+      organization_id: string;
+      email: string;
+      display_name: string;
+    }>();
   if (!row) return null;
   const rolesResult = await env.DB.prepare(
     'SELECT role, group_id FROM user_roles WHERE user_id = ? ORDER BY role',

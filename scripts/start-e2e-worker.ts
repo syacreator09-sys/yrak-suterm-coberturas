@@ -31,15 +31,7 @@ run([
 
 const child = spawn(
   'pnpm',
-  [
-    'wrangler',
-    'dev',
-    '--config',
-    'apps/worker/wrangler.jsonc',
-    '--local',
-    '--port',
-    '8787',
-  ],
+  ['wrangler', 'dev', '--config', 'apps/worker/wrangler.jsonc', '--local', '--port', '8787'],
   { stdio: 'inherit', shell: process.platform === 'win32' },
 );
 

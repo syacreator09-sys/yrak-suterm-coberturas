@@ -16,39 +16,40 @@ export async function findAvailabilityConflicts(
     excludeCoverageCaseId?: string;
   },
 ): Promise<AvailabilityConflict[]> {
-  const absenceResult = await env.DB.prepare(`SELECT id, starts_at, ends_at
+  const absenceResult = await env.DB.prepare(
+    `SELECT id, starts_at, ends_at
     FROM absences
     WHERE employee_id = ?
       AND status <> 'CANCELLED'
       AND starts_at <= ?
       AND ends_at >= ?
-    ORDER BY starts_at`)
+    ORDER BY starts_at`,
+  )
     .bind(input.employeeId, input.endsAt, input.startsAt)
     .all<{ id: string; starts_at: string; ends_at: string }>();
 
   const assignmentResult = input.excludeCoverageCaseId
-    ? await env.DB.prepare(`SELECT id, starts_at, ends_at
+    ? await env.DB.prepare(
+        `SELECT id, starts_at, ends_at
         FROM temporary_assignments
         WHERE employee_id = ?
           AND coverage_case_id <> ?
           AND status IN ('PROPOSED','APPROVED','SCHEDULED','ACTIVE')
           AND starts_at <= ?
           AND ends_at >= ?
-        ORDER BY starts_at`)
-        .bind(
-          input.employeeId,
-          input.excludeCoverageCaseId,
-          input.endsAt,
-          input.startsAt,
-        )
+        ORDER BY starts_at`,
+      )
+        .bind(input.employeeId, input.excludeCoverageCaseId, input.endsAt, input.startsAt)
         .all<{ id: string; starts_at: string; ends_at: string }>()
-    : await env.DB.prepare(`SELECT id, starts_at, ends_at
+    : await env.DB.prepare(
+        `SELECT id, starts_at, ends_at
         FROM temporary_assignments
         WHERE employee_id = ?
           AND status IN ('PROPOSED','APPROVED','SCHEDULED','ACTIVE')
           AND starts_at <= ?
           AND ends_at >= ?
-        ORDER BY starts_at`)
+        ORDER BY starts_at`,
+      )
         .bind(input.employeeId, input.endsAt, input.startsAt)
         .all<{ id: string; starts_at: string; ends_at: string }>();
 

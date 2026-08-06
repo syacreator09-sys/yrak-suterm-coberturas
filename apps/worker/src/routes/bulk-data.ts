@@ -41,21 +41,22 @@ bulkDataRoutes.post(
     const rows = context.req.valid('json').rows;
     await context.env.DB.batch(
       rows.map((row) =>
-        context.env.DB.prepare(`INSERT INTO requirements (
+        context.env.DB.prepare(
+          `INSERT INTO requirements (
           id, organization_id, name, requirement_type, validity_days, active
         ) VALUES (?, ?, ?, ?, ?, 1)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           requirement_type = excluded.requirement_type,
           validity_days = excluded.validity_days,
-          active = 1`)
-          .bind(
-            row.id ?? crypto.randomUUID(),
-            user.organizationId,
-            row.name,
-            row.type,
-            row.validityDays ?? null,
-          ),
+          active = 1`,
+        ).bind(
+          row.id ?? crypto.randomUUID(),
+          user.organizationId,
+          row.name,
+          row.type,
+          row.validityDays ?? null,
+        ),
       ),
     );
     await appendAudit(context.env, {
@@ -106,12 +107,16 @@ bulkDataRoutes.post(
     const rows = context.req.valid('json').rows;
     const statements: D1PreparedStatement[] = [];
     for (const row of rows) {
-      const employee = await context.env.DB.prepare(`SELECT id FROM employees
-        WHERE organization_id = ? AND employee_number = ?`)
+      const employee = await context.env.DB.prepare(
+        `SELECT id FROM employees
+        WHERE organization_id = ? AND employee_number = ?`,
+      )
         .bind(user.organizationId, row.employeeNumber)
         .first<{ id: string }>();
-      const requirement = await context.env.DB.prepare(`SELECT id FROM requirements
-        WHERE organization_id = ? AND id = ?`)
+      const requirement = await context.env.DB.prepare(
+        `SELECT id FROM requirements
+        WHERE organization_id = ? AND id = ?`,
+      )
         .bind(user.organizationId, row.requirementId)
         .first<{ id: string }>();
       if (!employee || !requirement) {
@@ -125,7 +130,8 @@ bulkDataRoutes.post(
         );
       }
       statements.push(
-        context.env.DB.prepare(`INSERT INTO employee_requirements (
+        context.env.DB.prepare(
+          `INSERT INTO employee_requirements (
           id, employee_id, requirement_id, status, completed_at, valid_until,
           score, evidence_attachment_id, verified_by, verified_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -136,18 +142,18 @@ bulkDataRoutes.post(
           score = excluded.score,
           evidence_attachment_id = excluded.evidence_attachment_id,
           verified_by = excluded.verified_by,
-          verified_at = datetime('now')`)
-          .bind(
-            crypto.randomUUID(),
-            employee.id,
-            requirement.id,
-            row.status,
-            row.completedAt ?? null,
-            row.validUntil ?? null,
-            row.score ?? null,
-            row.evidenceAttachmentId ?? null,
-            user.id,
-          ),
+          verified_at = datetime('now')`,
+        ).bind(
+          crypto.randomUUID(),
+          employee.id,
+          requirement.id,
+          row.status,
+          row.completedAt ?? null,
+          row.validUntil ?? null,
+          row.score ?? null,
+          row.evidenceAttachmentId ?? null,
+          user.id,
+        ),
       );
     }
     await context.env.DB.batch(statements);
@@ -189,8 +195,10 @@ bulkDataRoutes.post(
     const rows = context.req.valid('json').rows;
     const statements: D1PreparedStatement[] = [];
     for (const row of rows) {
-      const employee = await context.env.DB.prepare(`SELECT id FROM employees
-        WHERE organization_id = ? AND employee_number = ?`)
+      const employee = await context.env.DB.prepare(
+        `SELECT id FROM employees
+        WHERE organization_id = ? AND employee_number = ?`,
+      )
         .bind(user.organizationId, row.employeeNumber)
         .first<{ id: string }>();
       if (!employee) {
@@ -200,21 +208,22 @@ bulkDataRoutes.post(
         );
       }
       statements.push(
-        context.env.DB.prepare(`INSERT INTO employee_shift_dates (
+        context.env.DB.prepare(
+          `INSERT INTO employee_shift_dates (
           id, employee_id, shift_date, scheduled, shift_code, created_by
         ) VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(employee_id, shift_date) DO UPDATE SET
           scheduled = excluded.scheduled,
           shift_code = excluded.shift_code,
-          created_by = excluded.created_by`)
-          .bind(
-            crypto.randomUUID(),
-            employee.id,
-            row.date,
-            row.scheduled ? 1 : 0,
-            row.shiftCode ?? null,
-            user.id,
-          ),
+          created_by = excluded.created_by`,
+        ).bind(
+          crypto.randomUUID(),
+          employee.id,
+          row.date,
+          row.scheduled ? 1 : 0,
+          row.shiftCode ?? null,
+          user.id,
+        ),
       );
     }
     await context.env.DB.batch(statements);

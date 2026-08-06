@@ -23,13 +23,15 @@ async function assignmentDeliveries(
   coverageCaseId: string,
   topic: string,
 ): Promise<Delivery[]> {
-  const result = await env.DB.prepare(`SELECT cc.folio, cc.process_type, cc.starts_at, cc.ends_at,
+  const result = await env.DB.prepare(
+    `SELECT cc.folio, cc.process_type, cc.starts_at, cc.ends_at,
       e.name AS employee_name, e.email, base.name AS base_level, target.name AS target_level
     FROM temporary_assignments ta JOIN coverage_cases cc ON cc.id = ta.coverage_case_id
     JOIN employees e ON e.id = ta.employee_id
     JOIN levels base ON base.id = ta.base_level_id
     JOIN levels target ON target.id = ta.target_level_id
-    WHERE cc.id = ? ORDER BY ta.chain_order`)
+    WHERE cc.id = ? ORDER BY ta.chain_order`,
+  )
     .bind(coverageCaseId)
     .all<AssignmentRow>();
   return (result.results ?? [])
@@ -68,12 +70,14 @@ async function assignmentDeliveries(
 }
 
 async function competitionOpenedDeliveries(env: Env, competitionId: string): Promise<Delivery[]> {
-  const result = await env.DB.prepare(`SELECT c.id, c.registration_ends_at, c.exam_at,
+  const result = await env.DB.prepare(
+    `SELECT c.id, c.registration_ends_at, c.exam_at,
       c.minimum_score, cc.folio, candidate.eligibility_status,
       candidate.eligibility_details_json, e.name, e.email
     FROM competitions c JOIN coverage_cases cc ON cc.id = c.coverage_case_id
     JOIN competition_candidates candidate ON candidate.competition_id = c.id
-    JOIN employees e ON e.id = candidate.employee_id WHERE c.id = ?`)
+    JOIN employees e ON e.id = candidate.employee_id WHERE c.id = ?`,
+  )
     .bind(competitionId)
     .all<{
       registration_ends_at: string;
@@ -106,7 +110,9 @@ async function competitionOpenedDeliveries(env: Env, competitionId: string): Pro
       }
       let reasons: string[] = [];
       try {
-        const detail = JSON.parse(row.eligibility_details_json) as { reasons?: Array<{ code?: string }> };
+        const detail = JSON.parse(row.eligibility_details_json) as {
+          reasons?: Array<{ code?: string }>;
+        };
         reasons = (detail.reasons ?? []).map((reason) => reason.code ?? 'REQUISITO_NO_CUMPLIDO');
       } catch {
         reasons = ['EXPEDIENTE_NO_ELEGIBLE'];
@@ -127,11 +133,13 @@ async function competitionOpenedDeliveries(env: Env, competitionId: string): Pro
 }
 
 async function competitionResultDeliveries(env: Env, competitionId: string): Promise<Delivery[]> {
-  const result = await env.DB.prepare(`SELECT cc.folio, candidate.result_status, e.name, e.email
+  const result = await env.DB.prepare(
+    `SELECT cc.folio, candidate.result_status, e.name, e.email
     FROM competitions c JOIN coverage_cases cc ON cc.id = c.coverage_case_id
     JOIN competition_candidates candidate ON candidate.competition_id = c.id
     JOIN employees e ON e.id = candidate.employee_id
-    WHERE c.id = ? AND candidate.eligibility_status = 'ELIGIBLE'`)
+    WHERE c.id = ? AND candidate.eligibility_status = 'ELIGIBLE'`,
+  )
     .bind(competitionId)
     .all<{ folio: string; result_status: string; name: string; email: string | null }>();
   return (result.results ?? [])
@@ -163,14 +171,17 @@ async function resolveDeliveries(
 }
 
 async function sendDelivery(env: Env, outboxEventId: string, delivery: Delivery): Promise<void> {
-  const existing = await env.DB.prepare(`SELECT id, status FROM messages
-    WHERE outbox_event_id = ? AND recipient = ?`)
+  const existing = await env.DB.prepare(
+    `SELECT id, status FROM messages
+    WHERE outbox_event_id = ? AND recipient = ?`,
+  )
     .bind(outboxEventId, delivery.recipient)
     .first<{ id: string; status: string }>();
   if (existing?.status === 'SENT' || existing?.status === 'DELIVERED') return;
   const messageId = existing?.id ?? crypto.randomUUID();
   if (!existing) {
-    await env.DB.prepare(`INSERT INTO messages (
+    await env.DB.prepare(
+      `INSERT INTO messages (
       id, organization_id, channel, direction, recipient, subject, body_text,
       template_key, status, outbox_event_id
     ) SELECT ?, g.organization_id, 'EMAIL', 'OUTBOUND', ?, ?, ?, ?, 'QUEUED', ?
@@ -179,7 +190,8 @@ async function sendDelivery(env: Env, outboxEventId: string, delivery: Delivery)
       LEFT JOIN competitions c ON oe.aggregate_type = 'COMPETITION' AND c.id = oe.aggregate_id
       LEFT JOIN coverage_cases competition_case ON competition_case.id = c.coverage_case_id
       JOIN groups g ON g.id = COALESCE(cc.group_id, competition_case.group_id)
-      WHERE oe.id = ?`)
+      WHERE oe.id = ?`,
+    )
       .bind(
         messageId,
         delivery.recipient,
@@ -202,7 +214,9 @@ async function sendDelivery(env: Env, outboxEventId: string, delivery: Delivery)
       subject: delivery.subject,
       text: delivery.text,
     });
-    await env.DB.prepare("UPDATE messages SET status = 'SENT', sent_at = datetime('now') WHERE id = ?")
+    await env.DB.prepare(
+      "UPDATE messages SET status = 'SENT', sent_at = datetime('now') WHERE id = ?",
+    )
       .bind(messageId)
       .run();
   } catch (error) {
@@ -214,14 +228,18 @@ async function sendDelivery(env: Env, outboxEventId: string, delivery: Delivery)
 }
 
 export async function processOutboxEvent(env: Env, outboxEventId: string): Promise<void> {
-  const event = await env.DB.prepare(`SELECT id, topic, aggregate_id, status
-    FROM outbox_events WHERE id = ?`)
+  const event = await env.DB.prepare(
+    `SELECT id, topic, aggregate_id, status
+    FROM outbox_events WHERE id = ?`,
+  )
     .bind(outboxEventId)
     .first<{ id: string; topic: string; aggregate_id: string; status: string }>();
   if (!event || event.status === 'SENT') return;
-  const claim = await env.DB.prepare(`UPDATE outbox_events
+  const claim = await env.DB.prepare(
+    `UPDATE outbox_events
     SET status = 'PROCESSING', attempts = attempts + 1
-    WHERE id = ? AND status IN ('PENDING','FAILED')`)
+    WHERE id = ? AND status IN ('PENDING','FAILED')`,
+  )
     .bind(outboxEventId)
     .run();
   const changes = Number((claim.meta as { changes?: number } | undefined)?.changes ?? 0);
@@ -229,12 +247,16 @@ export async function processOutboxEvent(env: Env, outboxEventId: string): Promi
   try {
     const deliveries = await resolveDeliveries(env, event.topic, event.aggregate_id);
     for (const delivery of deliveries) await sendDelivery(env, event.id, delivery);
-    await env.DB.prepare("UPDATE outbox_events SET status = 'SENT', processed_at = datetime('now') WHERE id = ?")
+    await env.DB.prepare(
+      "UPDATE outbox_events SET status = 'SENT', processed_at = datetime('now') WHERE id = ?",
+    )
       .bind(event.id)
       .run();
   } catch (error) {
-    await env.DB.prepare(`UPDATE outbox_events
-      SET status = 'FAILED', available_at = datetime('now', '+5 minutes') WHERE id = ?`)
+    await env.DB.prepare(
+      `UPDATE outbox_events
+      SET status = 'FAILED', available_at = datetime('now', '+5 minutes') WHERE id = ?`,
+    )
       .bind(event.id)
       .run();
     throw error;

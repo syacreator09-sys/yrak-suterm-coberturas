@@ -65,7 +65,14 @@ engineRoutes.post(
       evaluations: z.array(
         z.object({
           requirementId: z.string(),
-          status: z.enum(['COMPLIANT', 'MISSING', 'EXPIRED', 'PENDING', 'REJECTED', 'NOT_APPLICABLE']),
+          status: z.enum([
+            'COMPLIANT',
+            'MISSING',
+            'EXPIRED',
+            'PENDING',
+            'REJECTED',
+            'NOT_APPLICABLE',
+          ]),
           validUntil: z.string().nullable(),
           evidenceId: z.string().nullable(),
         }),
@@ -92,7 +99,9 @@ engineRoutes.post(
           seniorityDate: z.string(),
         }),
       ),
-      tieBreakers: z.array(z.object({ type: z.enum(['CRITICAL_SECTION', 'SENIORITY', 'EMPLOYEE_ID']) })),
+      tieBreakers: z.array(
+        z.object({ type: z.enum(['CRITICAL_SECTION', 'SENIORITY', 'EMPLOYEE_ID']) }),
+      ),
     }),
   ),
   (context) => {

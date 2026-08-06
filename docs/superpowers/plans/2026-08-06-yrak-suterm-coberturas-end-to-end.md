@@ -49,6 +49,7 @@ Orden obligatorio:
 ### Task 1: Fundación y gobierno del repositorio
 
 **Files:**
+
 - Create: `README.md`
 - Create: `LICENSE`
 - Create: `NOTICE-FORJA.md`
@@ -70,6 +71,7 @@ Orden obligatorio:
 - Create: `.github/workflows/ci.yml`
 
 **Interfaces:**
+
 - Produces: comandos raíz `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm build`.
 - Produces: reglas permanentes para cualquier agente que modifique el repositorio.
 
@@ -91,6 +93,7 @@ Orden obligatorio:
 ### Task 2: Importación controlada de Forja
 
 **Files:**
+
 - Create: `docs/forja-adoption.md`
 - Create: `apps/worker/package.json`
 - Create: `apps/worker/src/index.ts`
@@ -102,12 +105,16 @@ Orden obligatorio:
 - Create: `tests/contract/forja-attribution.test.ts`
 
 **Interfaces:**
+
 - Produces: `createApp(env: AppEnv): Hono<AppBindings>`.
 - Produces: `AIProvider` y adaptadores de canal desacoplados del dominio.
 
 ```ts
 export interface AIProvider {
-  transcribe(input: { bytes: ArrayBuffer; mimeType: string }): Promise<{ text: string; confidence?: number }>;
+  transcribe(input: {
+    bytes: ArrayBuffer;
+    mimeType: string;
+  }): Promise<{ text: string; confidence?: number }>;
   extract<T>(input: { prompt: string; content: string }, schema: z.ZodType<T>): Promise<T>;
   generate(input: { system: string; prompt: string }): Promise<string>;
 }
@@ -130,6 +137,7 @@ export interface AIProvider {
 ### Task 3: Dominio, tipos y máquina de estados
 
 **Files:**
+
 - Create: `packages/domain/src/ids.ts`
 - Create: `packages/domain/src/entities.ts`
 - Create: `packages/domain/src/enums.ts`
@@ -143,15 +151,18 @@ export interface AIProvider {
 **Interfaces:**
 
 ```ts
-export type CoverageProcessType = "ROTATION" | "COMPETITION";
+export type CoverageProcessType = 'ROTATION' | 'COMPETITION';
 
 export interface CoveragePolicyConfig {
   shortCoverageMaximumDays: number;
   longCoverageMinimumDays: number;
-  dayCountingMode: "CALENDAR_DAYS" | "WORKING_DAYS" | "SHIFTS";
+  dayCountingMode: 'CALENDAR_DAYS' | 'WORKING_DAYS' | 'SHIFTS';
 }
 
-export function determineCoverageProcess(days: number, config: CoveragePolicyConfig): CoverageProcessType;
+export function determineCoverageProcess(
+  days: number,
+  config: CoveragePolicyConfig,
+): CoverageProcessType;
 ```
 
 - [ ] Escribir pruebas fallidas para días 1, 5, 6, duración cero y duración negativa.
@@ -169,6 +180,7 @@ export function determineCoverageProcess(days: number, config: CoveragePolicyCon
 ### Task 4: Esquema D1, migraciones y repositorios
 
 **Files:**
+
 - Create: `migrations/0001_identity.sql`
 - Create: `migrations/0002_requirements.sql`
 - Create: `migrations/0003_coverages.sql`
@@ -187,12 +199,20 @@ export function determineCoverageProcess(days: number, config: CoveragePolicyCon
 ```ts
 export interface EmployeeRepository {
   getById(id: EmployeeId): Promise<Employee | null>;
-  listEligibleSourceLevel(groupId: GroupId, sourceLevelId: LevelId, period: DateRange): Promise<Employee[]>;
+  listEligibleSourceLevel(
+    groupId: GroupId,
+    sourceLevelId: LevelId,
+    period: DateRange,
+  ): Promise<Employee[]>;
 }
 
 export interface CoverageCaseRepository {
   create(input: CreateCoverageCase): Promise<CoverageCase>;
-  transition(id: CoverageCaseId, expectedVersion: number, next: CoverageCaseStatus): Promise<CoverageCase>;
+  transition(
+    id: CoverageCaseId,
+    expectedVersion: number,
+    next: CoverageCaseStatus,
+  ): Promise<CoverageCase>;
 }
 ```
 
@@ -213,6 +233,7 @@ export interface CoverageCaseRepository {
 ### Task 5: Motor de rotación de 1 a 5 días
 
 **Files:**
+
 - Create: `packages/rotation/src/rotation-engine.ts`
 - Create: `packages/rotation/src/rotation-policy.ts`
 - Create: `packages/rotation/src/rotation-service.ts`
@@ -226,7 +247,7 @@ export interface CoverageCaseRepository {
 export interface RotationCandidate {
   employeeId: EmployeeId;
   position: number;
-  availability: "AVAILABLE" | "UNAVAILABLE" | "RESERVED" | "ASSIGNED" | "SUSPENDED";
+  availability: 'AVAILABLE' | 'UNAVAILABLE' | 'RESERVED' | 'ASSIGNED' | 'SUSPENDED';
 }
 
 export function selectNextCandidate(candidates: RotationCandidate[]): RotationCandidate;
@@ -256,6 +277,7 @@ export interface CompleteRotationInput {
 ### Task 6: Asignaciones temporales, cadena y regreso
 
 **Files:**
+
 - Create: `packages/assignments/src/assignment-service.ts`
 - Create: `packages/assignments/src/chain-planner.ts`
 - Create: `packages/assignments/src/return-service.ts`
@@ -294,6 +316,7 @@ export function planCoverageChain(input: ChainPlanInput): CoverageChainStep[];
 ### Task 7: Requisitos y motor de elegibilidad
 
 **Files:**
+
 - Create: `packages/eligibility/src/eligibility-engine.ts`
 - Create: `packages/eligibility/src/requirement-evaluator.ts`
 - Create: `packages/eligibility/src/evidence-service.ts`
@@ -308,7 +331,7 @@ export interface EligibilityResult {
   eligible: boolean;
   reasons: Array<{
     requirementId: RequirementId;
-    code: "MISSING" | "EXPIRED" | "REJECTED" | "PENDING";
+    code: 'MISSING' | 'EXPIRED' | 'REJECTED' | 'PENDING';
     messageKey: string;
   }>;
 }
@@ -331,6 +354,7 @@ export function evaluateEligibility(input: EligibilityInput): EligibilityResult;
 ### Task 8: Concursos, exámenes, ranking y desempate
 
 **Files:**
+
 - Create: `packages/competition/src/competition-service.ts`
 - Create: `packages/competition/src/exam-service.ts`
 - Create: `packages/competition/src/ranking-engine.ts`
@@ -350,11 +374,12 @@ export interface CandidateScore {
 }
 
 export type TieBreakerRule =
-  | { type: "CRITICAL_SECTION" }
-  | { type: "SENIORITY" }
-  | { type: "DOCUMENTED_DRAW" };
+  { type: 'CRITICAL_SECTION' } | { type: 'SENIORITY' } | { type: 'DOCUMENTED_DRAW' };
 
-export function rankCandidates(scores: CandidateScore[], rules: TieBreakerRule[]): RankedCandidate[];
+export function rankCandidates(
+  scores: CandidateScore[],
+  rules: TieBreakerRule[],
+): RankedCandidate[];
 ```
 
 - [ ] Validar calificaciones entre 0 y 100.
@@ -374,6 +399,7 @@ export function rankCandidates(scores: CandidateScore[], rules: TieBreakerRule[]
 ### Task 9: Durable Objects, Workflows y programación
 
 **Files:**
+
 - Create: `apps/worker/src/durable/group-coordinator.ts`
 - Create: `apps/worker/src/workflows/short-coverage-workflow.ts`
 - Create: `apps/worker/src/workflows/competition-workflow.ts`
@@ -411,6 +437,7 @@ export interface ReserveCandidateCommand {
 ### Task 10: API, autenticación y permisos
 
 **Files:**
+
 - Create: `apps/worker/src/routes/*.ts`
 - Create: `apps/worker/src/auth/session.ts`
 - Create: `apps/worker/src/auth/rbac.ts`
@@ -452,6 +479,7 @@ GET    /api/audit/events
 ### Task 11: Panel administrativo end-to-end
 
 **Files:**
+
 - Create: `apps/worker/src/admin/layout.tsx`
 - Create: `apps/worker/src/admin/pages/dashboard.tsx`
 - Create: `apps/worker/src/admin/pages/groups.tsx`
@@ -492,6 +520,7 @@ GET    /api/audit/events
 ### Task 12: Correo y notificaciones
 
 **Files:**
+
 - Create: `packages/notifications/src/templates/*.ts`
 - Create: `packages/notifications/src/email-adapter.ts`
 - Create: `packages/notifications/src/outbox-service.ts`
@@ -503,7 +532,13 @@ GET    /api/audit/events
 
 ```ts
 export interface EmailAdapter {
-  send(message: { to: string[]; subject: string; html: string; text: string; idempotencyKey: string }): Promise<{ providerMessageId: string }>;
+  send(message: {
+    to: string[];
+    subject: string;
+    html: string;
+    text: string;
+    idempotencyKey: string;
+  }): Promise<{ providerMessageId: string }>;
 }
 ```
 
@@ -522,6 +557,7 @@ export interface EmailAdapter {
 ### Task 13: Audios, imágenes, documentos y agentes
 
 **Files:**
+
 - Create: `packages/agents/src/intake-agent.ts`
 - Create: `packages/agents/src/communication-agent.ts`
 - Create: `packages/agents/src/audit-assistant.ts`
@@ -564,6 +600,7 @@ export const IntakeDraftSchema = z.object({
 ### Task 14: MCP y conectores externos
 
 **Files:**
+
 - Create: `apps/mcp/package.json`
 - Create: `apps/mcp/src/server.ts`
 - Create: `apps/mcp/src/tools/*.ts`
@@ -607,6 +644,7 @@ record_exam_score
 ### Task 15: Seguridad, observabilidad, respaldos y recuperación
 
 **Files:**
+
 - Create: `apps/worker/src/security/*.ts`
 - Create: `packages/audit/src/audit-service.ts`
 - Create: `packages/observability/src/logger.ts`
@@ -636,6 +674,7 @@ record_exam_score
 ### Task 16: Auditoría integral y pruebas end-to-end
 
 **Files:**
+
 - Create: `tests/e2e/scenarios/short-coverage.spec.ts`
 - Create: `tests/e2e/scenarios/long-competition.spec.ts`
 - Create: `tests/e2e/scenarios/cascade-return.spec.ts`
@@ -674,6 +713,7 @@ record_exam_score
 ### Task 17: Staging, producción y paquete de entrega
 
 **Files:**
+
 - Create: `wrangler.staging.jsonc`
 - Create: `wrangler.production.jsonc`
 - Create: `.github/workflows/deploy-staging.yml`

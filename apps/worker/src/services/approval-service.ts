@@ -11,11 +11,13 @@ export async function decideApproval(
   decision: 'APPROVED' | 'REJECTED',
   reason: string,
 ): Promise<{ coverageCaseId: string; workflowInstanceId?: string }> {
-  const approval = await env.DB.prepare(`SELECT a.id, a.entity_id, a.action, a.status,
+  const approval = await env.DB.prepare(
+    `SELECT a.id, a.entity_id, a.action, a.status,
       cc.process_type, cc.group_id, cc.starts_at, cc.ends_at
     FROM approvals a JOIN coverage_cases cc ON cc.id = a.entity_id
     JOIN groups g ON g.id = cc.group_id
-    WHERE a.id = ? AND a.entity_type = 'COVERAGE_CASE' AND g.organization_id = ?`)
+    WHERE a.id = ? AND a.entity_type = 'COVERAGE_CASE' AND g.organization_id = ?`,
+  )
     .bind(approvalId, user.organizationId)
     .first<{
       id: string;
@@ -35,17 +37,26 @@ export async function decideApproval(
   )
     .bind(approval.entity_id)
     .first<{ id: string; employee_id: string }>();
-  if (!assignment) throw new DomainError('PROPOSED_ASSIGNMENT_NOT_FOUND', 'No existe asignación propuesta');
+  if (!assignment)
+    throw new DomainError('PROPOSED_ASSIGNMENT_NOT_FOUND', 'No existe asignación propuesta');
 
   if (decision === 'REJECTED') {
     const statements: D1PreparedStatement[] = [
-      env.DB.prepare("UPDATE approvals SET status = 'REJECTED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'").bind(user.id, reason, approvalId),
-      env.DB.prepare("UPDATE temporary_assignments SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(assignment.id),
-      env.DB.prepare("UPDATE coverage_cases SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(approval.entity_id),
+      env.DB.prepare(
+        "UPDATE approvals SET status = 'REJECTED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'",
+      ).bind(user.id, reason, approvalId),
+      env.DB.prepare(
+        "UPDATE temporary_assignments SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?",
+      ).bind(assignment.id),
+      env.DB.prepare(
+        "UPDATE coverage_cases SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?",
+      ).bind(approval.entity_id),
     ];
     if (approval.process_type === 'ROTATION') {
       statements.push(
-        env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'AVAILABLE', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
+        env.DB.prepare(
+          "UPDATE rotation_queue_entries SET availability = 'AVAILABLE', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'",
+        ).bind(assignment.employee_id),
       );
     }
     await env.DB.batch(statements);
@@ -66,13 +77,21 @@ export async function decideApproval(
 
   const nextCoverageStatus = approval.process_type === 'ROTATION' ? 'ROTATION_ASSIGNED' : 'AWARDED';
   const statements: D1PreparedStatement[] = [
-    env.DB.prepare("UPDATE approvals SET status = 'APPROVED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'").bind(user.id, reason, approvalId),
-    env.DB.prepare("UPDATE temporary_assignments SET status = 'APPROVED', approved_by = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(user.id, assignment.id),
-    env.DB.prepare("UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(nextCoverageStatus, approval.entity_id),
+    env.DB.prepare(
+      "UPDATE approvals SET status = 'APPROVED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'",
+    ).bind(user.id, reason, approvalId),
+    env.DB.prepare(
+      "UPDATE temporary_assignments SET status = 'APPROVED', approved_by = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?",
+    ).bind(user.id, assignment.id),
+    env.DB.prepare(
+      "UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?",
+    ).bind(nextCoverageStatus, approval.entity_id),
   ];
   if (approval.process_type === 'ROTATION') {
     statements.push(
-      env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'ASSIGNED', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
+      env.DB.prepare(
+        "UPDATE rotation_queue_entries SET availability = 'ASSIGNED', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'",
+      ).bind(assignment.employee_id),
     );
   }
   await env.DB.batch(statements);

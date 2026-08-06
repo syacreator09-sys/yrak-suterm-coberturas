@@ -16,11 +16,14 @@ async function processAttachment(env: Env, message: AttachmentProcessingMessage)
       bytes,
       mimeType: message.mimeType,
       language: 'es',
-      context: 'Sistema de coberturas temporales: grupos, niveles, vacaciones, requisitos y concursos.',
+      context:
+        'Sistema de coberturas temporales: grupos, niveles, vacaciones, requisitos y concursos.',
     });
-    await env.DB.prepare(`UPDATE attachments
+    await env.DB.prepare(
+      `UPDATE attachments
       SET extraction_status = 'REVIEW_REQUIRED', extracted_text = ?, extraction_confidence = ?
-      WHERE id = ?`)
+      WHERE id = ?`,
+    )
       .bind(result.text, result.confidence ?? null, message.attachmentId)
       .run();
     if (generativeProvider) {

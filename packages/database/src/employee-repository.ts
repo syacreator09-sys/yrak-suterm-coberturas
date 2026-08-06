@@ -30,18 +30,19 @@ export class D1EmployeeRepository {
 
   public async getById(id: EmployeeId): Promise<Employee | null> {
     const row = await this.db
-      .prepare('SELECT id, employee_number, name, email, group_id, base_level_id, active, seniority_date FROM employees WHERE id = ?')
+      .prepare(
+        'SELECT id, employee_number, name, email, group_id, base_level_id, active, seniority_date FROM employees WHERE id = ?',
+      )
       .bind(id)
       .first<EmployeeRow>();
     return row ? mapEmployee(row) : null;
   }
 
-  public async listBySourceLevel(
-    groupId: GroupId,
-    sourceLevelId: LevelId,
-  ): Promise<Employee[]> {
+  public async listBySourceLevel(groupId: GroupId, sourceLevelId: LevelId): Promise<Employee[]> {
     const result = await this.db
-      .prepare('SELECT id, employee_number, name, email, group_id, base_level_id, active, seniority_date FROM employees WHERE group_id = ? AND base_level_id = ? AND active = 1 ORDER BY seniority_date ASC, employee_number ASC')
+      .prepare(
+        'SELECT id, employee_number, name, email, group_id, base_level_id, active, seniority_date FROM employees WHERE group_id = ? AND base_level_id = ? AND active = 1 ORDER BY seniority_date ASC, employee_number ASC',
+      )
       .bind(groupId, sourceLevelId)
       .all<EmployeeRow>();
     return (result.results ?? []).map(mapEmployee);

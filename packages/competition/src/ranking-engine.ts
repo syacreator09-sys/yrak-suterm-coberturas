@@ -9,9 +9,7 @@ export interface CandidateScore {
 }
 
 export type TieBreakerRule =
-  | { type: 'CRITICAL_SECTION' }
-  | { type: 'SENIORITY' }
-  | { type: 'EMPLOYEE_ID' };
+  { type: 'CRITICAL_SECTION' } | { type: 'SENIORITY' } | { type: 'EMPLOYEE_ID' };
 
 export interface RankedCandidate extends CandidateScore {
   rank: number;
@@ -44,7 +42,8 @@ export function rankCandidates(
         if (difference !== 0) return difference;
       }
       if (rule.type === 'SENIORITY') {
-        const difference = new Date(left.seniorityDate).getTime() - new Date(right.seniorityDate).getTime();
+        const difference =
+          new Date(left.seniorityDate).getTime() - new Date(right.seniorityDate).getTime();
         if (difference !== 0) return difference;
       }
       if (rule.type === 'EMPLOYEE_ID') {

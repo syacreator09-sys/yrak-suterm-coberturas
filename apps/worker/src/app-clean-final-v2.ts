@@ -30,10 +30,7 @@ export function createCleanFinalAppV2(): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
 
   app.use('*', async (context, next) => {
-    context.set(
-      'correlationId',
-      context.req.header('x-correlation-id') ?? crypto.randomUUID(),
-    );
+    context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
     context.header('x-correlation-id', context.get('correlationId'));
     context.header('x-content-type-options', 'nosniff');
     context.header('referrer-policy', 'no-referrer');

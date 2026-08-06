@@ -20,7 +20,8 @@ const databaseName = required('CLOUDFLARE_D1_DATABASE_NAME');
 const suffix = environment === 'production' ? 'production' : 'staging';
 
 if (target === 'worker') {
-  const workerName = process.env.CLOUDFLARE_WORKER_NAME?.trim() || `yrak-suterm-coberturas-${suffix}`;
+  const workerName =
+    process.env.CLOUDFLARE_WORKER_NAME?.trim() || `yrak-suterm-coberturas-${suffix}`;
   const queueName = required('CLOUDFLARE_QUEUE_NAME');
   const config = {
     $schema: '../../node_modules/wrangler/config-schema.json',
@@ -37,7 +38,14 @@ if (target === 'worker') {
       CF_ACCESS_TEAM_DOMAIN: required('CF_ACCESS_TEAM_DOMAIN'),
       CF_ACCESS_AUD: required('CF_ACCESS_AUD'),
     },
-    d1_databases: [{ binding: 'DB', database_name: databaseName, database_id: databaseId, migrations_dir: '../../migrations' }],
+    d1_databases: [
+      {
+        binding: 'DB',
+        database_name: databaseName,
+        database_id: databaseId,
+        migrations_dir: '../../migrations',
+      },
+    ],
     r2_buckets: [{ binding: 'EVIDENCE', bucket_name: required('CLOUDFLARE_R2_BUCKET_NAME') }],
     queues: {
       producers: [{ binding: 'PROCESSING_QUEUE', queue: queueName }],
@@ -46,14 +54,24 @@ if (target === 'worker') {
     ai: { binding: 'AI' },
     durable_objects: { bindings: [{ name: 'GROUP_COORDINATOR', class_name: 'GroupCoordinator' }] },
     migrations: [{ tag: 'v1', new_sqlite_classes: ['GroupCoordinator'] }],
-    workflows: [{ name: `yrak-coverage-workflow-${suffix}`, binding: 'COVERAGE_WORKFLOW', class_name: 'CoverageWorkflow' }],
+    workflows: [
+      {
+        name: `yrak-coverage-workflow-${suffix}`,
+        binding: 'COVERAGE_WORKFLOW',
+        class_name: 'CoverageWorkflow',
+      },
+    ],
     send_email: [{ name: 'EMAIL' }],
     triggers: { crons: ['*/1 * * * *'] },
     observability: { enabled: true },
   };
-  writeFileSync(resolve('apps/worker/wrangler.generated.json'), `${JSON.stringify(config, null, 2)}\n`);
+  writeFileSync(
+    resolve('apps/worker/wrangler.generated.json'),
+    `${JSON.stringify(config, null, 2)}\n`,
+  );
 } else {
-  const workerName = process.env.CLOUDFLARE_MCP_WORKER_NAME?.trim() || `yrak-suterm-coberturas-mcp-${suffix}`;
+  const workerName =
+    process.env.CLOUDFLARE_MCP_WORKER_NAME?.trim() || `yrak-suterm-coberturas-mcp-${suffix}`;
   const config = {
     $schema: '../../node_modules/wrangler/config-schema.json',
     name: workerName,
@@ -67,7 +85,10 @@ if (target === 'worker') {
     d1_databases: [{ binding: 'DB', database_name: databaseName, database_id: databaseId }],
     observability: { enabled: true },
   };
-  writeFileSync(resolve('apps/mcp-server/wrangler.generated.json'), `${JSON.stringify(config, null, 2)}\n`);
+  writeFileSync(
+    resolve('apps/mcp-server/wrangler.generated.json'),
+    `${JSON.stringify(config, null, 2)}\n`,
+  );
 }
 
 console.log(`Configuración ${target}/${environment} generada.`);

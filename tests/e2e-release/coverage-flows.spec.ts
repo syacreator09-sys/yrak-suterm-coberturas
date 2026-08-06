@@ -26,18 +26,17 @@ test('5 days uses rotation and preserves the employee base level', async ({ requ
   expect(created.durationDays).toBe(5);
   expect(created.rotation.employeeId).toBe('EMP-7-A-E2E');
 
-  const approval = await request.post(
-    `/api/v1/approvals/${created.rotation.approvalId}/decide`,
-    {
-      headers: idempotencyHeaders(),
-      data: { decision: 'APPROVED', reason: 'Aprobación funcional E2E' },
-    },
-  );
+  const approval = await request.post(`/api/v1/approvals/${created.rotation.approvalId}/decide`, {
+    headers: idempotencyHeaders(),
+    data: { decision: 'APPROVED', reason: 'Aprobación funcional E2E' },
+  });
   expect(approval.ok()).toBeTruthy();
 
   const employees = await request.get('/api/v1/employees');
   expect(employees.ok()).toBeTruthy();
-  const employeeItems = ((await employees.json()) as { items: Array<{ id: string; base_level_id: string }> }).items;
+  const employeeItems = (
+    (await employees.json()) as { items: Array<{ id: string; base_level_id: string }> }
+  ).items;
   expect(employeeItems.find((item) => item.id === 'EMP-7-A-E2E')?.base_level_id).toBe(
     'LEVEL-7-E2E',
   );

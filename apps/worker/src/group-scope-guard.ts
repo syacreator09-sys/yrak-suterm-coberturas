@@ -12,18 +12,17 @@ async function coverageGroup(
   context: Parameters<MiddlewareHandler<AppBindings>>[0],
   coverageCaseId: string,
 ): Promise<string | null> {
-  const row = await context.env.DB.prepare(`SELECT cc.group_id
+  const row = await context.env.DB.prepare(
+    `SELECT cc.group_id
     FROM coverage_cases cc JOIN groups g ON g.id = cc.group_id
-    WHERE cc.id = ? AND g.organization_id = ?`)
+    WHERE cc.id = ? AND g.organization_id = ?`,
+  )
     .bind(coverageCaseId, context.get('user').organizationId)
     .first<{ group_id: string }>();
   return row?.group_id ?? null;
 }
 
-export const guardCriticalGroupScope: MiddlewareHandler<AppBindings> = async (
-  context,
-  next,
-) => {
+export const guardCriticalGroupScope: MiddlewareHandler<AppBindings> = async (context, next) => {
   const user = context.get('user');
   if (hasOrganizationWideAccess(user.roles)) {
     await next();
@@ -35,19 +34,19 @@ export const guardCriticalGroupScope: MiddlewareHandler<AppBindings> = async (
 
   const approvalMatch = path.match(/^\/api\/v1\/approvals\/([^/]+)\/decide$/);
   if (approvalMatch) {
-    const approval = await context.env.DB.prepare(`SELECT cc.group_id
+    const approval = await context.env.DB.prepare(
+      `SELECT cc.group_id
       FROM approvals a JOIN coverage_cases cc ON cc.id = a.entity_id
       JOIN groups g ON g.id = cc.group_id
       WHERE a.id = ? AND a.entity_type = 'COVERAGE_CASE'
-        AND g.organization_id = ?`)
+        AND g.organization_id = ?`,
+    )
       .bind(approvalMatch[1], user.organizationId)
       .first<{ group_id: string }>();
     groupId = approval?.group_id ?? null;
   }
 
-  const coverageMatch = path.match(
-    /^\/api\/v1\/coverages\/([^/]+)\/(?:cancel|complete-early)$/,
-  );
+  const coverageMatch = path.match(/^\/api\/v1\/coverages\/([^/]+)\/(?:cancel|complete-early)$/);
   if (coverageMatch) {
     groupId = await coverageGroup(context, coverageMatch[1] ?? '');
   }
@@ -62,7 +61,5 @@ export const guardCriticalGroupScope: MiddlewareHandler<AppBindings> = async (
   await next();
 };
 
-export const authenticateCriticalScope: MiddlewareHandler<AppBindings> = async (
-  context,
-  next,
-) => authenticate(context, next);
+export const authenticateCriticalScope: MiddlewareHandler<AppBindings> = async (context, next) =>
+  authenticate(context, next);

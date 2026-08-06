@@ -28,7 +28,10 @@ export function createApp(): Hono<AppBindings> {
     context.header('x-content-type-options', 'nosniff');
     context.header('referrer-policy', 'no-referrer');
     context.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
-    context.header('content-security-policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
+    context.header(
+      'content-security-policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'",
+    );
     await next();
   });
   app.route('/', healthRoutes);
@@ -52,9 +55,23 @@ export function createApp(): Hono<AppBindings> {
 
   app.notFound((context) => context.json({ error: 'NOT_FOUND' }, 404));
   app.onError((error, context) => {
-    console.error(JSON.stringify({ level: 'error', correlationId: context.get('correlationId'), message: error.message, stack: context.env.ENVIRONMENT === 'production' ? undefined : error.stack }));
-    if (error instanceof DomainError) return context.json({ error: error.code, message: error.message, details: error.details }, 422);
-    return context.json({ error: 'INTERNAL_ERROR', correlationId: context.get('correlationId') }, 500);
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        correlationId: context.get('correlationId'),
+        message: error.message,
+        stack: context.env.ENVIRONMENT === 'production' ? undefined : error.stack,
+      }),
+    );
+    if (error instanceof DomainError)
+      return context.json(
+        { error: error.code, message: error.message, details: error.details },
+        422,
+      );
+    return context.json(
+      { error: 'INTERNAL_ERROR', correlationId: context.get('correlationId') },
+      500,
+    );
   });
   return app;
 }

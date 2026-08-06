@@ -35,7 +35,8 @@ function createServer(env: Env): McpServer {
     },
     async ({ status, limit }) => {
       const rows = status
-        ? await env.DB.prepare(`SELECT cc.id, cc.folio, cc.starts_at, cc.ends_at,
+        ? await env.DB.prepare(
+            `SELECT cc.id, cc.folio, cc.starts_at, cc.ends_at,
               cc.duration_days, cc.process_type, cc.status,
               e.name AS absent_employee
             FROM coverage_cases cc
@@ -43,10 +44,12 @@ function createServer(env: Env): McpServer {
             JOIN employees e ON e.id = a.employee_id
             JOIN groups g ON g.id = cc.group_id
             WHERE g.organization_id = ? AND cc.status = ?
-            ORDER BY cc.created_at DESC LIMIT ?`)
+            ORDER BY cc.created_at DESC LIMIT ?`,
+          )
             .bind(env.MCP_ORGANIZATION_ID, status, limit)
             .all()
-        : await env.DB.prepare(`SELECT cc.id, cc.folio, cc.starts_at, cc.ends_at,
+        : await env.DB.prepare(
+            `SELECT cc.id, cc.folio, cc.starts_at, cc.ends_at,
               cc.duration_days, cc.process_type, cc.status,
               e.name AS absent_employee
             FROM coverage_cases cc
@@ -54,7 +57,8 @@ function createServer(env: Env): McpServer {
             JOIN employees e ON e.id = a.employee_id
             JOIN groups g ON g.id = cc.group_id
             WHERE g.organization_id = ?
-            ORDER BY cc.created_at DESC LIMIT ?`)
+            ORDER BY cc.created_at DESC LIMIT ?`,
+          )
             .bind(env.MCP_ORGANIZATION_ID, limit)
             .all();
       return result(rows.results ?? []);
@@ -68,21 +72,29 @@ function createServer(env: Env): McpServer {
       inputSchema: z.object({ coverageCaseId: z.string().min(1) }),
     },
     async ({ coverageCaseId }) => {
-      const item = await env.DB.prepare(`SELECT cc.* FROM coverage_cases cc
+      const item = await env.DB.prepare(
+        `SELECT cc.* FROM coverage_cases cc
           JOIN groups g ON g.id = cc.group_id
-          WHERE cc.id = ? AND g.organization_id = ?`)
+          WHERE cc.id = ? AND g.organization_id = ?`,
+      )
         .bind(coverageCaseId, env.MCP_ORGANIZATION_ID)
         .first();
       if (!item) return result({ error: 'NOT_FOUND', entity: 'coverage_case' });
       const [assignments, approvals, countedDays] = await env.DB.batch([
-        env.DB.prepare(`SELECT * FROM temporary_assignments
-          WHERE coverage_case_id = ? ORDER BY chain_order`).bind(coverageCaseId),
-        env.DB.prepare(`SELECT * FROM approvals
+        env.DB.prepare(
+          `SELECT * FROM temporary_assignments
+          WHERE coverage_case_id = ? ORDER BY chain_order`,
+        ).bind(coverageCaseId),
+        env.DB.prepare(
+          `SELECT * FROM approvals
           WHERE entity_type = 'COVERAGE_CASE' AND entity_id = ?
-          ORDER BY requested_at`).bind(coverageCaseId),
-        env.DB.prepare(`SELECT counted_date, counting_mode, source
+          ORDER BY requested_at`,
+        ).bind(coverageCaseId),
+        env.DB.prepare(
+          `SELECT counted_date, counting_mode, source
           FROM coverage_counted_days WHERE coverage_case_id = ?
-          ORDER BY counted_date`).bind(coverageCaseId),
+          ORDER BY counted_date`,
+        ).bind(coverageCaseId),
       ]);
       return result({
         item,
@@ -104,7 +116,8 @@ function createServer(env: Env): McpServer {
       }),
     },
     async ({ groupId, sourceLevelId, targetLevelId }) => {
-      const rows = await env.DB.prepare(`SELECT rqe.queue_position,
+      const rows = await env.DB.prepare(
+        `SELECT rqe.queue_position,
           rqe.availability, rqe.last_coverage_at, rqe.times_selected,
           e.id AS employee_id, e.employee_number, e.name
         FROM rotation_pools rp
@@ -113,13 +126,9 @@ function createServer(env: Env): McpServer {
         JOIN groups g ON g.id = rp.group_id
         WHERE rp.group_id = ? AND rp.source_level_id = ?
           AND rp.target_level_id = ? AND g.organization_id = ?
-        ORDER BY rqe.queue_position`)
-        .bind(
-          groupId,
-          sourceLevelId,
-          targetLevelId,
-          env.MCP_ORGANIZATION_ID,
-        )
+        ORDER BY rqe.queue_position`,
+      )
+        .bind(groupId, sourceLevelId, targetLevelId, env.MCP_ORGANIZATION_ID)
         .all();
       return result(rows.results ?? []);
     },
@@ -132,18 +141,22 @@ function createServer(env: Env): McpServer {
       inputSchema: z.object({ competitionId: z.string().min(1) }),
     },
     async ({ competitionId }) => {
-      const competition = await env.DB.prepare(`SELECT c.* FROM competitions c
+      const competition = await env.DB.prepare(
+        `SELECT c.* FROM competitions c
           JOIN coverage_cases cc ON cc.id = c.coverage_case_id
           JOIN groups g ON g.id = cc.group_id
-          WHERE c.id = ? AND g.organization_id = ?`)
+          WHERE c.id = ? AND g.organization_id = ?`,
+      )
         .bind(competitionId, env.MCP_ORGANIZATION_ID)
         .first();
       if (!competition) return result({ error: 'NOT_FOUND', entity: 'competition' });
-      const candidates = await env.DB.prepare(`SELECT candidate.*, e.name,
+      const candidates = await env.DB.prepare(
+        `SELECT candidate.*, e.name,
           e.employee_number
         FROM competition_candidates candidate
         JOIN employees e ON e.id = candidate.employee_id
-        WHERE candidate.competition_id = ? ORDER BY candidate.ranking, e.name`)
+        WHERE candidate.competition_id = ? ORDER BY candidate.ranking, e.name`,
+      )
         .bind(competitionId)
         .all();
       return result({ competition, candidates: candidates.results ?? [] });
@@ -157,20 +170,24 @@ function createServer(env: Env): McpServer {
       inputSchema: z.object({ employeeId: z.string().min(1) }),
     },
     async ({ employeeId }) => {
-      const employee = await env.DB.prepare(`SELECT id, employee_number, name,
+      const employee = await env.DB.prepare(
+        `SELECT id, employee_number, name,
           base_level_id, group_id
-        FROM employees WHERE id = ? AND organization_id = ?`)
+        FROM employees WHERE id = ? AND organization_id = ?`,
+      )
         .bind(employeeId, env.MCP_ORGANIZATION_ID)
         .first();
       if (!employee) return result({ error: 'NOT_FOUND', entity: 'employee' });
-      const requirements = await env.DB.prepare(`SELECT r.id AS requirement_id,
+      const requirements = await env.DB.prepare(
+        `SELECT r.id AS requirement_id,
           r.name, r.requirement_type, er.status, er.completed_at, er.valid_until,
           er.score, er.verified_at
         FROM requirements r
         LEFT JOIN employee_requirements er
           ON er.requirement_id = r.id AND er.employee_id = ?
         WHERE r.organization_id = ? AND r.active = 1
-        ORDER BY r.name`)
+        ORDER BY r.name`,
+      )
         .bind(employeeId, env.MCP_ORGANIZATION_ID)
         .all();
       return result({ employee, requirements: requirements.results ?? [] });
@@ -188,12 +205,14 @@ function createServer(env: Env): McpServer {
       }),
     },
     async ({ entityType, entityId, limit }) => {
-      const rows = await env.DB.prepare(`SELECT actor_id, actor_type, action,
+      const rows = await env.DB.prepare(
+        `SELECT actor_id, actor_type, action,
           rule_applied, reason, previous_value_json, new_value_json,
           correlation_id, occurred_at
         FROM audit_events
         WHERE organization_id = ? AND entity_type = ? AND entity_id = ?
-        ORDER BY occurred_at ASC LIMIT ?`)
+        ORDER BY occurred_at ASC LIMIT ?`,
+      )
         .bind(env.MCP_ORGANIZATION_ID, entityType, entityId, limit)
         .all();
       return result(rows.results ?? []);
@@ -214,9 +233,7 @@ export default {
       legacy: 'stateless',
       responseMode: 'auto',
       corsOptions: false,
-      ...(env.MCP_ALLOWED_HOSTNAME
-        ? { allowedHostnames: [env.MCP_ALLOWED_HOSTNAME] }
-        : {}),
+      ...(env.MCP_ALLOWED_HOSTNAME ? { allowedHostnames: [env.MCP_ALLOWED_HOSTNAME] } : {}),
       onerror: (error) => console.error('MCP error', error),
     });
     return handler(request, env, context);

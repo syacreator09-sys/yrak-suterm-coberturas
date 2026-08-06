@@ -16,9 +16,11 @@ export async function enqueueOutbox(
   payload: Record<string, unknown> = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await env.DB.prepare(`INSERT INTO outbox_events (
+  await env.DB.prepare(
+    `INSERT INTO outbox_events (
     id, topic, aggregate_type, aggregate_id, payload_json, status, available_at
-  ) VALUES (?, ?, ?, ?, ?, 'PENDING', datetime('now'))`)
+  ) VALUES (?, ?, ?, ?, ?, 'PENDING', datetime('now'))`,
+  )
     .bind(id, topic, aggregateType, aggregateId, JSON.stringify(payload))
     .run();
   const message: OutboxProcessingMessage = { kind: 'OUTBOX', outboxEventId: id };
@@ -27,10 +29,11 @@ export async function enqueueOutbox(
 }
 
 export async function sweepOutbox(env: Env): Promise<number> {
-  const result = await env.DB.prepare(`SELECT id FROM outbox_events
+  const result = await env.DB.prepare(
+    `SELECT id FROM outbox_events
     WHERE status IN ('PENDING','FAILED') AND available_at <= datetime('now')
-    ORDER BY created_at LIMIT 50`)
-    .all<{ id: string }>();
+    ORDER BY created_at LIMIT 50`,
+  ).all<{ id: string }>();
   const events = result.results ?? [];
   if (events.length > 0) {
     await env.PROCESSING_QUEUE.sendBatch(

@@ -40,7 +40,9 @@ export class D1CoverageRepository {
 
   public async getById(id: CoverageCaseId): Promise<CoverageCase | null> {
     const row = await this.db
-      .prepare('SELECT id, group_id, vacant_level_id, starts_at, ends_at, duration_days, process_type, status, version FROM coverage_cases WHERE id = ?')
+      .prepare(
+        'SELECT id, group_id, vacant_level_id, starts_at, ends_at, duration_days, process_type, status, version FROM coverage_cases WHERE id = ?',
+      )
       .bind(id)
       .first<CoverageRow>();
     return row ? mapCoverage(row) : null;
@@ -55,13 +57,18 @@ export class D1CoverageRepository {
     if (!current) throw new DomainError('COVERAGE_NOT_FOUND', 'No existe el expediente');
     assertCoverageTransition(current.status, next);
     const result = await this.db
-      .prepare('UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime(\'now\') WHERE id = ? AND version = ?')
+      .prepare(
+        "UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime('now') WHERE id = ? AND version = ?",
+      )
       .bind(next, id, expectedVersion)
       .run();
     assertD1Success(result, 'transition coverage');
     const updated = await this.getById(id);
     if (!updated || updated.version !== expectedVersion + 1) {
-      throw new DomainError('OPTIMISTIC_LOCK_CONFLICT', 'El expediente fue modificado por otro proceso');
+      throw new DomainError(
+        'OPTIMISTIC_LOCK_CONFLICT',
+        'El expediente fue modificado por otro proceso',
+      );
     }
     return updated;
   }

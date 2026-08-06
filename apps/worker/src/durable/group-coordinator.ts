@@ -51,6 +51,9 @@ export class GroupCoordinator extends DurableObject<Env> {
   }
 
   public release(coverageCaseId: string): void {
-    this.ctx.storage.sql.exec('DELETE FROM reservations WHERE coverage_case_id = ?', coverageCaseId);
+    this.ctx.storage.sql.exec(
+      'DELETE FROM reservations WHERE coverage_case_id = ?',
+      coverageCaseId,
+    );
   }
 }

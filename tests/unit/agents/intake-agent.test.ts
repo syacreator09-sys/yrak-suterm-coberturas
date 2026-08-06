@@ -23,9 +23,7 @@ describe('IntakeAgent', () => {
   });
 
   it('rejects a provider result that tries to bypass review', async () => {
-    const agent = new IntakeAgent(
-      new MockAIProvider('audio', { ...draft, reviewRequired: false }),
-    );
+    const agent = new IntakeAgent(new MockAIProvider('audio', { ...draft, reviewRequired: false }));
     await expect(agent.fromText('solicitud', 'AUDIO')).rejects.toThrow();
   });
 });
