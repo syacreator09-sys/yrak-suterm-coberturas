@@ -61,7 +61,7 @@ async function ensureRotationPool(
     ).bind(poolId, groupId, sourceLevelId, targetLevelId),
     ...(employees.results ?? []).map((employee, index) =>
       env.DB.prepare(
-        'INSERT INTO rotation_queue_entries (id, pool_id, employee_id, queue_position, availability) VALUES (?, ?, ?, ?, \'AVAILABLE\')',
+        "INSERT INTO rotation_queue_entries (id, pool_id, employee_id, queue_position, availability) VALUES (?, ?, ?, ?, 'AVAILABLE')",
       ).bind(crypto.randomUUID(), poolId, employee.id, index + 1),
     ),
   ];
@@ -93,7 +93,6 @@ async function createRotationAssignment(
     availability: row.availability,
     ...(row.unavailable_reason ? { unavailableReason: row.unavailable_reason } : {}),
   }));
-
   let selected: ReturnType<typeof selectNextCandidate>['selected'] | null = null;
   while (candidates.some((candidate) => candidate.availability === 'AVAILABLE')) {
     const selection = selectNextCandidate(candidates as never);
@@ -271,6 +270,10 @@ export async function createCoverage(
     .first<EmployeeRow>();
   if (!employee || employee.active !== 1 || employee.organization_id !== user.organizationId) {
     throw new DomainError('ABSENT_EMPLOYEE_NOT_FOUND', 'No existe la persona ausente en la organización');
+  }
+  const privileged = user.roles.some((role) => ['ADMIN', 'HR'].includes(role));
+  if (!privileged && user.groups.length > 0 && !user.groups.includes(employee.group_id)) {
+    throw new DomainError('GROUP_SCOPE_FORBIDDEN', 'No tienes autorización sobre este grupo');
   }
   const durationDays = countCalendarDays(input.startsAt, input.endsAt);
   const processType = determineCoverageProcess(durationDays);
