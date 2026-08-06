@@ -1,5 +1,6 @@
 import { createApp } from './app.js';
-import { processAttachment } from './processing.js';
+import { processQueueMessage } from './processing.js';
+import { sweepOutbox } from './outbox.js';
 import type { Env, ProcessingMessage } from './types.js';
 export { GroupCoordinator } from './durable/group-coordinator.js';
 export { CoverageWorkflow } from './workflows/coverage-workflow.js';
@@ -11,13 +12,16 @@ export default {
   async queue(batch: MessageBatch<ProcessingMessage>, env: Env): Promise<void> {
     for (const message of batch.messages) {
       try {
-        await processAttachment(env, message.body);
+        await processQueueMessage(env, message.body);
         message.ack();
       } catch (error) {
-        console.error('attachment processing failed', error);
+        console.error('queue processing failed', error);
         message.retry();
       }
     }
+  },
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    await sweepOutbox(env);
   },
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     const channel = await env.DB.prepare(`SELECT organization_id

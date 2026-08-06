@@ -15,10 +15,10 @@ function getJwks(teamDomain: string): ReturnType<typeof createRemoteJWKSet> {
 
 async function loadUser(env: Env, subject: string): Promise<AuthenticatedUser | null> {
   const row = await env.DB.prepare(
-    'SELECT id, organization_id, email, display_name FROM app_users WHERE external_subject = ? AND active = 1',
+    'SELECT id, employee_id, organization_id, email, display_name FROM app_users WHERE external_subject = ? AND active = 1',
   )
     .bind(subject)
-    .first<{ id: string; organization_id: string; email: string; display_name: string }>();
+    .first<{ id: string; employee_id: string | null; organization_id: string; email: string; display_name: string }>();
   if (!row) return null;
   const rolesResult = await env.DB.prepare(
     'SELECT role, group_id FROM user_roles WHERE user_id = ? ORDER BY role',
@@ -27,6 +27,7 @@ async function loadUser(env: Env, subject: string): Promise<AuthenticatedUser | 
     .all<{ role: string; group_id: string | null }>();
   return {
     id: row.id,
+    employeeId: row.employee_id,
     organizationId: row.organization_id,
     email: row.email,
     displayName: row.display_name,
@@ -45,6 +46,7 @@ export const authenticate: MiddlewareHandler<AppBindings> = async (context, next
     if (testUser) {
       context.set('user', {
         id: testUser,
+        employeeId: context.req.header('x-test-employee') ?? null,
         organizationId: context.req.header('x-test-organization') ?? 'ORG-DEMO',
         email: context.req.header('x-test-email') ?? 'tester@example.com',
         displayName: 'Usuario de prueba',

@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { authenticate, requireRoles } from '../auth.js';
+import { enqueueOutbox } from '../outbox.js';
 import {
   approveScoreRevision,
   finalizeCompetition,
@@ -27,6 +28,10 @@ competitionRoutes.post(
   zValidator('json', z.object({ employeeId: z.string(), accepted: z.boolean() })),
   async (context) => {
     const input = context.req.valid('json');
+    const user = context.get('user');
+    if (user.roles.includes('EMPLOYEE') && !user.roles.some((role) => ['ADMIN','HR'].includes(role)) && user.employeeId !== input.employeeId) {
+      return context.json({ error: 'FORBIDDEN' }, 403);
+    }
     await context.env.DB.prepare(`UPDATE competition_candidates
       SET accepted_participation = ?, accepted_at = datetime('now'),
           result_status = CASE WHEN ? = 1 THEN 'PENDING' ELSE 'WITHDRAWN' END
@@ -69,6 +74,12 @@ competitionRoutes.post(
   requireRoles('ADMIN','HR','COMMITTEE'),
   async (context) => {
     const result = await finalizeCompetition(context.env, context.get('user'), context.get('correlationId'), context.req.param('id'));
+    await enqueueOutbox(
+      context.env,
+      'COMPETITION_RESULT_PROVISIONAL',
+      'COMPETITION',
+      context.req.param('id'),
+    );
     return context.json(result);
   },
 );

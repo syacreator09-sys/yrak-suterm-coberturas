@@ -2,6 +2,7 @@ import { zValidator } from '@hono/zod-validator';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { authenticate, requireRoles } from '../auth.js';
+import { enqueueOutbox } from '../outbox.js';
 import { createCoverage } from '../services/coverage-service.js';
 import { decideApproval } from '../services/approval-service.js';
 import type { AppBindings } from '../types.js';
@@ -20,13 +21,22 @@ coverageRoutes.get('/coverages', requireRoles('ADMIN','HR','SUPERVISOR','COMMITT
 });
 
 coverageRoutes.get('/coverages/:id', requireRoles('ADMIN','HR','SUPERVISOR','COMMITTEE','AUDITOR','OPERATOR','EMPLOYEE'), async (context) => {
-  const item = await context.env.DB.prepare(`SELECT cc.*, a.reason, e.name AS absent_employee_name
+  const user = context.get('user');
+  const item = await context.env.DB.prepare(`SELECT cc.*, a.employee_id AS absent_employee_id,
+      a.reason, e.name AS absent_employee_name
     FROM coverage_cases cc JOIN absences a ON a.id = cc.absence_id
     JOIN employees e ON e.id = a.employee_id JOIN groups g ON g.id = cc.group_id
     WHERE cc.id = ? AND g.organization_id = ?`)
-    .bind(context.req.param('id'), context.get('user').organizationId)
-    .first();
+    .bind(context.req.param('id'), user.organizationId)
+    .first<{ absent_employee_id: string } & Record<string, unknown>>();
   if (!item) return context.json({ error: 'NOT_FOUND' }, 404);
+  if (user.roles.includes('EMPLOYEE') && !user.roles.some((role) => ['ADMIN','HR','SUPERVISOR','COMMITTEE','AUDITOR','OPERATOR'].includes(role))) {
+    const related = await context.env.DB.prepare(`SELECT 1 AS related
+      FROM temporary_assignments WHERE coverage_case_id = ? AND employee_id = ? LIMIT 1`)
+      .bind(context.req.param('id'), user.employeeId)
+      .first();
+    if (item.absent_employee_id !== user.employeeId && !related) return context.json({ error: 'FORBIDDEN' }, 403);
+  }
   const assignments = await context.env.DB.prepare('SELECT * FROM temporary_assignments WHERE coverage_case_id = ? ORDER BY chain_order').bind(context.req.param('id')).all();
   const approvals = await context.env.DB.prepare("SELECT * FROM approvals WHERE entity_type = 'COVERAGE_CASE' AND entity_id = ? ORDER BY requested_at").bind(context.req.param('id')).all();
   return context.json({ item, assignments: assignments.results ?? [], approvals: approvals.results ?? [] });
@@ -56,6 +66,15 @@ coverageRoutes.post(
       context.get('correlationId'),
       context.req.valid('json'),
     );
+    const competition = result.competition;
+    if (competition && typeof competition === 'object' && 'competitionId' in competition) {
+      await enqueueOutbox(
+        context.env,
+        'COMPETITION_OPENED',
+        'COMPETITION',
+        String((competition as { competitionId: unknown }).competitionId),
+      );
+    }
     return context.json(result, 201);
   },
 );

@@ -1,11 +1,19 @@
 import type { GroupCoordinator } from './durable/group-coordinator.js';
 
-export interface ProcessingMessage {
+export interface AttachmentProcessingMessage {
+  kind: 'ATTACHMENT';
   attachmentId: string;
   r2Key: string;
   mimeType: string;
   organizationId: string;
 }
+
+export interface OutboxProcessingMessage {
+  kind: 'OUTBOX';
+  outboxEventId: string;
+}
+
+export type ProcessingMessage = AttachmentProcessingMessage | OutboxProcessingMessage;
 
 export interface EmailSenderBinding {
   send(payload: {
@@ -46,6 +54,7 @@ export interface Env {
 
 export interface AuthenticatedUser {
   id: string;
+  employeeId: string | null;
   organizationId: string;
   email: string;
   displayName: string;

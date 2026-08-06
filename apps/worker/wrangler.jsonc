@@ -33,15 +33,10 @@
     { "name": "yrak-coverage-workflow", "binding": "COVERAGE_WORKFLOW", "class_name": "CoverageWorkflow" }
   ],
   "send_email": [{ "name": "EMAIL" }],
+  "triggers": { "crons": ["*/1 * * * *"] },
   "observability": { "enabled": true },
   "env": {
-    "staging": {
-      "name": "yrak-suterm-coberturas-staging",
-      "vars": { "ENVIRONMENT": "staging" }
-    },
-    "production": {
-      "name": "yrak-suterm-coberturas-production",
-      "vars": { "ENVIRONMENT": "production" }
-    }
+    "staging": { "name": "yrak-suterm-coberturas-staging", "vars": { "ENVIRONMENT": "staging" } },
+    "production": { "name": "yrak-suterm-coberturas-production", "vars": { "ENVIRONMENT": "production" } }
   }
 }

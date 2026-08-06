@@ -1,5 +1,6 @@
 import { DomainError } from '@yrak/domain';
 import { appendAudit } from '../audit.js';
+import { enqueueOutbox } from '../outbox.js';
 import type { AuthenticatedUser, Env } from '../types.js';
 
 export async function decideApproval(
@@ -37,12 +38,17 @@ export async function decideApproval(
   if (!assignment) throw new DomainError('PROPOSED_ASSIGNMENT_NOT_FOUND', 'No existe asignación propuesta');
 
   if (decision === 'REJECTED') {
-    await env.DB.batch([
+    const statements: D1PreparedStatement[] = [
       env.DB.prepare("UPDATE approvals SET status = 'REJECTED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'").bind(user.id, reason, approvalId),
       env.DB.prepare("UPDATE temporary_assignments SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(assignment.id),
       env.DB.prepare("UPDATE coverage_cases SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(approval.entity_id),
-      env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'AVAILABLE', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
-    ]);
+    ];
+    if (approval.process_type === 'ROTATION') {
+      statements.push(
+        env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'AVAILABLE', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
+      );
+    }
+    await env.DB.batch(statements);
     const coordinator = env.GROUP_COORDINATOR.getByName(approval.group_id);
     await coordinator.release(approval.entity_id);
     await appendAudit(env, {
@@ -54,16 +60,22 @@ export async function decideApproval(
       reason,
       correlationId,
     });
+    await enqueueOutbox(env, 'ASSIGNMENT_REJECTED', 'COVERAGE_CASE', approval.entity_id);
     return { coverageCaseId: approval.entity_id };
   }
 
   const nextCoverageStatus = approval.process_type === 'ROTATION' ? 'ROTATION_ASSIGNED' : 'AWARDED';
-  await env.DB.batch([
+  const statements: D1PreparedStatement[] = [
     env.DB.prepare("UPDATE approvals SET status = 'APPROVED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE id = ? AND status = 'PENDING'").bind(user.id, reason, approvalId),
     env.DB.prepare("UPDATE temporary_assignments SET status = 'APPROVED', approved_by = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(user.id, assignment.id),
-    env.DB.prepare('UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime(\'now\') WHERE id = ?').bind(nextCoverageStatus, approval.entity_id),
-    env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'ASSIGNED', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
-  ]);
+    env.DB.prepare("UPDATE coverage_cases SET status = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(nextCoverageStatus, approval.entity_id),
+  ];
+  if (approval.process_type === 'ROTATION') {
+    statements.push(
+      env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'ASSIGNED', version = version + 1 WHERE employee_id = ? AND availability = 'RESERVED'").bind(assignment.employee_id),
+    );
+  }
+  await env.DB.batch(statements);
 
   let workflowInstanceId = `coverage-${approval.entity_id}`;
   try {
@@ -78,7 +90,7 @@ export async function decideApproval(
     });
     workflowInstanceId = instance.id;
   } catch {
-    // Idempotent retry: an instance with the deterministic ID may already exist.
+    // Un reintento puede encontrar la instancia determinista ya creada.
   }
   const instance = await env.COVERAGE_WORKFLOW.get(workflowInstanceId);
   await instance.sendEvent({
@@ -96,5 +108,6 @@ export async function decideApproval(
     reason,
     correlationId,
   });
+  await enqueueOutbox(env, 'ASSIGNMENT_APPROVED', 'COVERAGE_CASE', approval.entity_id);
   return { coverageCaseId: approval.entity_id, workflowInstanceId };
 }
