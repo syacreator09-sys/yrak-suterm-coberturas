@@ -1,0 +1,40 @@
+{
+  "name": "yrak-suterm-coberturas",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:contract": "vitest run tests/contract",
+    "test:e2e": "playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:apply:local": "wrangler d1 migrations apply YRAK_DB --local --config apps/worker/wrangler.jsonc",
+    "db:apply:remote": "wrangler d1 migrations apply YRAK_DB --remote --config apps/worker/wrangler.jsonc",
+    "db:seed:local": "tsx scripts/seed-demo.ts --local"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.34.0",
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^22.17.2",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.32.0"
+  }
+}
