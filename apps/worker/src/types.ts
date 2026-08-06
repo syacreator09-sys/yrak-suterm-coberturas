@@ -37,6 +37,9 @@ export interface Env {
   APP_ORIGIN: string;
   EMAIL_FROM: string;
   BOOTSTRAP_TOKEN?: string;
+  GENERATIVE_PROVIDER?: 'openai';
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
 }

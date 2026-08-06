@@ -7,7 +7,9 @@
   "vars": {
     "ENVIRONMENT": "development",
     "APP_ORIGIN": "http://localhost:8787",
-    "EMAIL_FROM": "notificaciones@example.com"
+    "EMAIL_FROM": "notificaciones@example.com",
+    "GENERATIVE_PROVIDER": "openai",
+    "OPENAI_MODEL": "gpt-5-mini"
   },
   "d1_databases": [
     {
@@ -17,56 +19,29 @@
       "migrations_dir": "../../migrations"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "EVIDENCE",
-      "bucket_name": "yrak-suterm-evidence"
-    }
-  ],
+  "r2_buckets": [{ "binding": "EVIDENCE", "bucket_name": "yrak-suterm-evidence" }],
   "queues": {
-    "producers": [
-      { "binding": "PROCESSING_QUEUE", "queue": "yrak-suterm-processing" }
-    ],
-    "consumers": [
-      { "queue": "yrak-suterm-processing", "max_batch_size": 5, "max_batch_timeout": 10 }
-    ]
+    "producers": [{ "binding": "PROCESSING_QUEUE", "queue": "yrak-suterm-processing" }],
+    "consumers": [{ "queue": "yrak-suterm-processing", "max_batch_size": 5, "max_batch_timeout": 10 }]
   },
   "ai": { "binding": "AI" },
   "durable_objects": {
-    "bindings": [
-      { "name": "GROUP_COORDINATOR", "class_name": "GroupCoordinator" }
-    ]
+    "bindings": [{ "name": "GROUP_COORDINATOR", "class_name": "GroupCoordinator" }]
   },
-  "exports": {
-    "GroupCoordinator": { "type": "durable-object", "storage": "sqlite" }
-  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GroupCoordinator"] }],
   "workflows": [
-    {
-      "name": "yrak-coverage-workflow",
-      "binding": "COVERAGE_WORKFLOW",
-      "class_name": "CoverageWorkflow"
-    }
+    { "name": "yrak-coverage-workflow", "binding": "COVERAGE_WORKFLOW", "class_name": "CoverageWorkflow" }
   ],
   "send_email": [{ "name": "EMAIL" }],
   "observability": { "enabled": true },
   "env": {
     "staging": {
       "name": "yrak-suterm-coberturas-staging",
-      "vars": { "ENVIRONMENT": "staging" },
-      "durable_objects": {
-        "bindings": [
-          { "name": "GROUP_COORDINATOR", "class_name": "GroupCoordinator" }
-        ]
-      }
+      "vars": { "ENVIRONMENT": "staging" }
     },
     "production": {
       "name": "yrak-suterm-coberturas-production",
-      "vars": { "ENVIRONMENT": "production" },
-      "durable_objects": {
-        "bindings": [
-          { "name": "GROUP_COORDINATOR", "class_name": "GroupCoordinator" }
-        ]
-      }
+      "vars": { "ENVIRONMENT": "production" }
     }
   }
 }

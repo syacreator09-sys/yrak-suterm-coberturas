@@ -13,6 +13,7 @@ import { employeeRoutes } from './routes/employees.js';
 import { coverageRoutes } from './routes/coverages.js';
 import { competitionRoutes } from './routes/competitions.js';
 import { auditRoutes } from './routes/audit.js';
+import { intakeRoutes } from './routes/intake.js';
 
 export function createApp(): Hono<AppBindings> {
   const app = new Hono<AppBindings>();
@@ -33,6 +34,7 @@ export function createApp(): Hono<AppBindings> {
   app.route('/api/v1', coverageRoutes);
   app.route('/api/v1', competitionRoutes);
   app.route('/api/v1', auditRoutes);
+  app.route('/api/v1', intakeRoutes);
 
   app.notFound((context) => context.json({ error: 'NOT_FOUND' }, 404));
   app.onError((error, context) => {
