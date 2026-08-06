@@ -1,0 +1,103 @@
+name: Verification report
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - build/**
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: install
+        continue-on-error: true
+        run: pnpm install --no-frozen-lockfile
+      - id: format
+        continue-on-error: true
+        run: pnpm format:check
+      - id: lint
+        continue-on-error: true
+        run: pnpm lint
+      - id: typecheck
+        continue-on-error: true
+        run: pnpm typecheck
+      - id: test
+        continue-on-error: true
+        run: pnpm test
+      - id: build
+        continue-on-error: true
+        run: pnpm build
+      - id: migrations
+        continue-on-error: true
+        run: pnpm db:apply:local
+      - name: Write verification report
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          FORMAT: ${{ steps.format.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          TEST: ${{ steps.test.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          MIGRATIONS: ${{ steps.migrations.outcome }}
+          SHA: ${{ github.sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          mkdir -p docs/verification
+          cat > docs/verification/latest.md <<EOF
+          # Última verificación automática
+
+          - Commit verificado: \`${SHA}\`
+          - Ejecución: ${RUN_URL}
+          - Instalación: **${INSTALL}**
+          - Formato: **${FORMAT}**
+          - Lint: **${LINT}**
+          - Typecheck: **${TYPECHECK}**
+          - Pruebas: **${TEST}**
+          - Build: **${BUILD}**
+          - Migraciones D1 locales: **${MIGRATIONS}**
+
+          Este archivo es generado por GitHub Actions. Una afirmación de entrega lista requiere todos los estados en \`success\`.
+          EOF
+      - name: Commit verification report
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/verification/latest.md pnpm-lock.yaml 2>/dev/null || true
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore: record automated verification"
+          git push
+      - name: Enforce success
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          FORMAT: ${{ steps.format.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          TYPECHECK: ${{ steps.typecheck.outcome }}
+          TEST: ${{ steps.test.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          MIGRATIONS: ${{ steps.migrations.outcome }}
+        run: |
+          test "$INSTALL" = success
+          test "$FORMAT" = success
+          test "$LINT" = success
+          test "$TYPECHECK" = success
+          test "$TEST" = success
+          test "$BUILD" = success
+          test "$MIGRATIONS" = success
