@@ -1,0 +1,289 @@
+openapi: 3.1.0
+info:
+  title: YRAK SUTERM Coberturas API
+  version: 1.0.0
+  description: >-
+    API auditable para rotaciones de 1 a 5 días, concursos de 6 días o más,
+    asignaciones temporales, regreso al nivel base, documentos e inconformidades.
+servers:
+  - url: https://{hostname}/api/v1
+    variables:
+      hostname:
+        default: staging.example.com
+security:
+  - cloudflareAccess: []
+components:
+  securitySchemes:
+    cloudflareAccess:
+      type: openIdConnect
+      openIdConnectUrl: https://{team}.cloudflareaccess.com/cdn-cgi/access/sso/oidc/.well-known/openid-configuration
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 200
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details: {}
+    CompetitionInput:
+      type: object
+      required: [registrationStartsAt, registrationEndsAt, examAt]
+      properties:
+        registrationStartsAt: { type: string, format: date-time }
+        registrationEndsAt: { type: string, format: date-time }
+        examAt: { type: string, format: date-time }
+        minimumScore: { type: number, minimum: 0, maximum: 100 }
+        tieBreakers:
+          type: array
+          items:
+            type: object
+            required: [type]
+            properties:
+              type:
+                type: string
+                enum: [CRITICAL_SECTION, SENIORITY, EMPLOYEE_ID]
+    CoverageCreate:
+      type: object
+      required: [absentEmployeeId, reason, startsAt, endsAt]
+      properties:
+        absentEmployeeId: { type: string }
+        reason: { type: string, minLength: 2 }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        source:
+          type: string
+          enum: [MANUAL, EMAIL, AUDIO, IMAGE, DOCUMENT, INTEGRATION]
+          default: MANUAL
+        competition:
+          $ref: '#/components/schemas/CompetitionInput'
+    AppealCreate:
+      type: object
+      required: [employeeId, reason]
+      properties:
+        employeeId: { type: string }
+        reason: { type: string, minLength: 10, maxLength: 5000 }
+        evidenceAttachmentId: { type: [string, 'null'] }
+paths:
+  /dashboard:
+    get:
+      summary: Resumen operativo
+      responses:
+        '200': { description: Resumen }
+        '401': { description: Sin autenticación }
+  /employees:
+    get:
+      summary: Lista personal de la organización
+      responses:
+        '200': { description: Lista }
+    post:
+      summary: Crea una persona
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      responses:
+        '201': { description: Persona creada }
+  /coverages:
+    get:
+      summary: Lista expedientes según organización y grupos autorizados
+      responses:
+        '200': { description: Lista }
+    post:
+      summary: Crea ausencia y decide rotación o concurso
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoverageCreate' }
+      responses:
+        '201': { description: Expediente creado }
+        '409': { description: Idempotencia o concurrencia }
+        '422': { description: Regla de negocio incumplida }
+  /coverages/{coverageCaseId}:
+    get:
+      summary: Consulta expediente, asignaciones y aprobaciones
+      parameters:
+        - name: coverageCaseId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Expediente }
+        '403': { description: Sin alcance }
+        '404': { description: No encontrado }
+  /coverages/{coverageCaseId}/cancel:
+    post:
+      summary: Cancela antes de iniciar y restaura la fila
+      parameters:
+        - name: coverageCaseId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3 }
+                cancelAbsence: { type: boolean, default: false }
+      responses:
+        '200': { description: Cancelado }
+        '422': { description: La cobertura ya inició o terminó }
+  /coverages/{coverageCaseId}/complete-early:
+    post:
+      summary: Termina anticipadamente y regresa al nivel base
+      parameters:
+        - name: coverageCaseId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                returnedAt: { type: string, format: date-time }
+                reason: { type: string, minLength: 3 }
+      responses:
+        '200': { description: Cobertura terminada }
+  /approvals/{approvalId}/decide:
+    post:
+      summary: Aprueba o rechaza una asignación propuesta
+      parameters:
+        - name: approvalId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision, reason]
+              properties:
+                decision: { type: string, enum: [APPROVED, REJECTED] }
+                reason: { type: string, minLength: 2 }
+      responses:
+        '200': { description: Decisión registrada }
+        '403': { description: Grupo no autorizado }
+  /competitions/{competitionId}:
+    get:
+      summary: Consulta concurso y candidatos
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Concurso }
+  /competitions/{competitionId}/accept:
+    post:
+      summary: Acepta o rechaza participación propia
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Respuesta registrada }
+  /competitions/{competitionId}/scores:
+    post:
+      summary: Registra examen o solicita revisión de una nota existente
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Nota o solicitud registrada }
+  /competitions/{competitionId}/finalize:
+    post:
+      summary: Calcula ranking determinista y resultado provisional
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Ranking calculado }
+  /competitions/{competitionId}/appeals:
+    post:
+      summary: Presenta inconformidad formal
+      parameters:
+        - name: competitionId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AppealCreate' }
+      responses:
+        '201': { description: Inconformidad presentada }
+  /appeals/{appealId}/decide:
+    post:
+      summary: Resuelve inconformidad con segundo actor
+      parameters:
+        - name: appealId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200': { description: Resolución registrada }
+        '409': { description: Se requiere segundo actor }
+  /attachments:
+    post:
+      summary: Sube audio, imagen o PDF para extracción asistida
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '202': { description: Archivo en procesamiento }
+        '413': { description: Archivo demasiado grande }
+        '415': { description: Tipo o firma no permitido }
+  /intake-drafts/{draftId}/approve:
+    post:
+      summary: Confirma un borrador y crea el expediente
+      parameters:
+        - name: draftId
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { description: Borrador convertido }
+  /audit:
+    get:
+      summary: Consulta historial inmutable
+      responses:
+        '200': { description: Eventos }
