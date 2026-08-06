@@ -11,9 +11,13 @@ dashboardRoutes.get('/dashboard', async (context) => {
     context.env.DB.prepare("SELECT COUNT(*) AS total FROM coverage_cases WHERE group_id IN (SELECT id FROM groups WHERE organization_id = ?) AND status IN ('SCHEDULED','ACTIVE')").bind(user.organizationId),
     context.env.DB.prepare("SELECT COUNT(*) AS total FROM competitions c JOIN coverage_cases cc ON cc.id = c.coverage_case_id JOIN groups g ON g.id = cc.group_id WHERE g.organization_id = ? AND c.status NOT IN ('FINAL','CANCELLED')").bind(user.organizationId),
     context.env.DB.prepare("SELECT COUNT(*) AS total FROM employee_requirements er JOIN employees e ON e.id = er.employee_id WHERE e.organization_id = ? AND er.status IN ('MISSING','EXPIRED','PENDING','REJECTED')").bind(user.organizationId),
-    context.env.DB.prepare("SELECT COUNT(*) AS total FROM approvals a WHERE a.status = 'PENDING'")
+    context.env.DB.prepare(`SELECT COUNT(*) AS total FROM approvals a
+      JOIN coverage_cases cc ON cc.id = a.entity_id JOIN groups g ON g.id = cc.group_id
+      WHERE a.entity_type = 'COVERAGE_CASE' AND a.status = 'PENDING' AND g.organization_id = ?`)
+      .bind(user.organizationId),
   ]);
-  const total = (result: D1Result<unknown>) => Number((result.results?.[0] as { total?: number } | undefined)?.total ?? 0);
+  const total = (result: D1Result<unknown>) =>
+    Number((result.results?.[0] as { total?: number } | undefined)?.total ?? 0);
   return context.json({
     activeCoverages: total(active),
     openCompetitions: total(competitions),

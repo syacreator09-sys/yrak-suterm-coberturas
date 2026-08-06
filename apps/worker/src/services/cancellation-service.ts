@@ -22,6 +22,10 @@ export async function cancelCoverage(
       status: string;
     }>();
   if (!coverage) throw new DomainError('COVERAGE_NOT_FOUND', 'No existe el expediente');
+  const privileged = user.roles.some((role) => ['ADMIN', 'HR'].includes(role));
+  if (!privileged && (user.groups.length === 0 || !user.groups.includes(coverage.group_id))) {
+    throw new DomainError('GROUP_SCOPE_FORBIDDEN', 'No tienes autorización sobre este grupo');
+  }
   if (['ACTIVE', 'DISPUTED'].includes(coverage.status)) {
     throw new DomainError(
       'ACTIVE_CANCELLATION_REQUIRES_FORMAL_RETURN',
@@ -34,37 +38,16 @@ export async function cancelCoverage(
   if (coverage.status === 'CANCELLED') return { coverageCaseId: coverage.id, status: 'CANCELLED' };
 
   const assignments = await env.DB.prepare(`SELECT id, employee_id, base_level_id,
-      target_level_id, status
-    FROM temporary_assignments WHERE coverage_case_id = ?`)
+      target_level_id, status FROM temporary_assignments WHERE coverage_case_id = ?`)
     .bind(coverage.id)
-    .all<{
-      id: string;
-      employee_id: string;
-      base_level_id: string;
-      target_level_id: string;
-      status: string;
-    }>();
+    .all<{ id: string; employee_id: string; base_level_id: string; target_level_id: string; status: string }>();
   const statements: D1PreparedStatement[] = [
-    env.DB.prepare(`UPDATE coverage_cases
-      SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now')
-      WHERE id = ?`).bind(coverage.id),
-    env.DB.prepare(`UPDATE temporary_assignments
-      SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now')
-      WHERE coverage_case_id = ? AND status NOT IN ('COMPLETED','CANCELLED','REPLACED')`)
-      .bind(coverage.id),
-    env.DB.prepare(`UPDATE approvals SET status = 'CANCELLED', decided_by = ?,
-      decided_at = datetime('now'), reason = ?
-      WHERE entity_type = 'COVERAGE_CASE' AND entity_id = ? AND status = 'PENDING'`)
-      .bind(user.id, input.reason, coverage.id),
-    env.DB.prepare("UPDATE competitions SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE coverage_case_id = ? AND status <> 'FINAL'")
-      .bind(coverage.id),
+    env.DB.prepare("UPDATE coverage_cases SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE id = ?").bind(coverage.id),
+    env.DB.prepare("UPDATE temporary_assignments SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE coverage_case_id = ? AND status NOT IN ('COMPLETED','CANCELLED','REPLACED')").bind(coverage.id),
+    env.DB.prepare("UPDATE approvals SET status = 'CANCELLED', decided_by = ?, decided_at = datetime('now'), reason = ? WHERE entity_type = 'COVERAGE_CASE' AND entity_id = ? AND status = 'PENDING'").bind(user.id, input.reason, coverage.id),
+    env.DB.prepare("UPDATE competitions SET status = 'CANCELLED', version = version + 1, updated_at = datetime('now') WHERE coverage_case_id = ? AND status <> 'FINAL'").bind(coverage.id),
   ];
-  if (input.cancelAbsence) {
-    statements.push(
-      env.DB.prepare("UPDATE absences SET status = 'CANCELLED' WHERE id = ?")
-        .bind(coverage.absence_id),
-    );
-  }
+  if (input.cancelAbsence) statements.push(env.DB.prepare("UPDATE absences SET status = 'CANCELLED' WHERE id = ?").bind(coverage.absence_id));
   if (coverage.process_type === 'ROTATION') {
     for (const assignment of assignments.results ?? []) {
       const pool = await env.DB.prepare(`SELECT id FROM rotation_pools
@@ -72,39 +55,18 @@ export async function cancelCoverage(
         .bind(coverage.group_id, assignment.base_level_id, assignment.target_level_id)
         .first<{ id: string }>();
       if (!pool) continue;
-      const entry = await env.DB.prepare(`SELECT queue_position FROM rotation_queue_entries
-        WHERE pool_id = ? AND employee_id = ?`)
-        .bind(pool.id, assignment.employee_id)
-        .first<{ queue_position: number }>();
-      statements.push(
-        env.DB.prepare(`UPDATE rotation_queue_entries
-          SET availability = 'AVAILABLE', version = version + 1, updated_at = datetime('now')
-          WHERE pool_id = ? AND employee_id = ? AND availability IN ('RESERVED','ASSIGNED')`)
-          .bind(pool.id, assignment.employee_id),
-      );
-      if (entry) {
-        statements.push(
-          env.DB.prepare(`INSERT INTO rotation_events (
-            id, pool_id, employee_id, coverage_case_id, event_type,
-            previous_position, new_position, reason, created_by
-          ) VALUES (?, ?, ?, ?, 'RESTORED', ?, ?, ?, ?)`)
-            .bind(
-              crypto.randomUUID(),
-              pool.id,
-              assignment.employee_id,
-              coverage.id,
-              entry.queue_position,
-              entry.queue_position,
-              input.reason,
-              user.id,
-            ),
-        );
-      }
+      const entry = await env.DB.prepare('SELECT queue_position FROM rotation_queue_entries WHERE pool_id = ? AND employee_id = ?')
+        .bind(pool.id, assignment.employee_id).first<{ queue_position: number }>();
+      statements.push(env.DB.prepare("UPDATE rotation_queue_entries SET availability = 'AVAILABLE', version = version + 1, updated_at = datetime('now') WHERE pool_id = ? AND employee_id = ? AND availability IN ('RESERVED','ASSIGNED')").bind(pool.id, assignment.employee_id));
+      if (entry) statements.push(env.DB.prepare(`INSERT INTO rotation_events (
+        id, pool_id, employee_id, coverage_case_id, event_type, previous_position,
+        new_position, reason, created_by
+      ) VALUES (?, ?, ?, ?, 'RESTORED', ?, ?, ?, ?)`)
+        .bind(crypto.randomUUID(), pool.id, assignment.employee_id, coverage.id, entry.queue_position, entry.queue_position, input.reason, user.id));
     }
   }
   await env.DB.batch(statements);
-  const coordinator = env.GROUP_COORDINATOR.getByName(coverage.group_id);
-  await coordinator.release(coverage.id);
+  await env.GROUP_COORDINATOR.getByName(coverage.group_id).release(coverage.id);
   await appendAudit(env, {
     organizationId: user.organizationId,
     actor: user,
@@ -115,8 +77,6 @@ export async function cancelCoverage(
     newValue: { cancelAbsence: input.cancelAbsence },
     correlationId,
   });
-  await enqueueOutbox(env, 'ASSIGNMENT_REJECTED', 'COVERAGE_CASE', coverage.id, {
-    reason: input.reason,
-  });
+  await enqueueOutbox(env, 'ASSIGNMENT_REJECTED', 'COVERAGE_CASE', coverage.id, { reason: input.reason });
   return { coverageCaseId: coverage.id, status: 'CANCELLED' };
 }

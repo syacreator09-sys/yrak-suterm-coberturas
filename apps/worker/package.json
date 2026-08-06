@@ -25,6 +25,7 @@
     "@yrak/rotation": "workspace:*",
     "hono": "^4.9.4",
     "jose": "^6.1.0",
+    "postal-mime": "latest",
     "zod": "^4.1.5"
   },
   "devDependencies": { "@cloudflare/workers-types": "latest" }

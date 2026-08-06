@@ -12,20 +12,19 @@ export async function createIntakeDraft(
     mimeType: string;
     bytes?: ArrayBuffer;
     extractedText?: string;
+    sourceOverride?: IntakeDraft['source'];
   },
 ): Promise<{ id: string; draft: IntakeDraft }> {
   const agent = new IntakeAgent(provider);
   let draft: IntakeDraft;
-  if (
-    input.bytes
-    && ['image/jpeg', 'image/png', 'image/webp'].includes(input.mimeType)
-  ) {
+  if (input.bytes && ['image/jpeg', 'image/png', 'image/webp'].includes(input.mimeType)) {
     draft = await agent.fromImage(
       input.bytes,
       input.mimeType as 'image/jpeg' | 'image/png' | 'image/webp',
     );
   } else if (input.extractedText) {
-    const source = input.mimeType.startsWith('audio/') ? 'AUDIO' : 'DOCUMENT';
+    const source =
+      input.sourceOverride ?? (input.mimeType.startsWith('audio/') ? 'AUDIO' : 'DOCUMENT');
     draft = await agent.fromText(input.extractedText, source);
   } else {
     throw new Error('No existe contenido compatible para crear borrador');
