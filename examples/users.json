@@ -1,0 +1,7 @@
+{
+  "items": [
+    { "email": "admin@example.com", "displayName": "Administrador Demo", "role": "ADMIN", "employeeId": null, "groupIds": [] },
+    { "email": "supervisor@example.com", "displayName": "Supervisor Demo", "role": "SUPERVISOR", "employeeId": null, "groupIds": ["grupo-demo-a"] },
+    { "email": "persona7a@example.com", "displayName": "Persona Demo 7A", "role": "EMPLOYEE", "employeeId": "REPLACE_WITH_IMPORTED_EMPLOYEE_ID", "groupIds": ["grupo-demo-a"] }
+  ]
+}
