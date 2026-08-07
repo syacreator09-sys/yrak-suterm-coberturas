@@ -1,25 +1,4 @@
-import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from 'cloudflare:workers';
-import type { AppEnv } from './env.js';
-
-interface CoverageWorkflowParams { coverageCaseId:string; startsOn:string; endsOn:string }
-
-export class CoverageWorkflow extends WorkflowEntrypoint<AppEnv,CoverageWorkflowParams>{
-  override async run(event:WorkflowEvent<CoverageWorkflowParams>,step:WorkflowStep){
-    const payload=event.payload;
-    await step.sleepUntil('wait-for-coverage-start',new Date(`${payload.startsOn}T00:00:00.000Z`));
-    await step.do('activate-assignment',async()=>{
-      await this.env.DB.batch([
-        this.env.DB.prepare(`UPDATE temporary_assignments SET status='ACTIVE',version=version+1 WHERE coverage_case_id=? AND status='SCHEDULED'`).bind(payload.coverageCaseId),
-        this.env.DB.prepare(`UPDATE coverage_cases SET status='ACTIVE',version=version+1,updated_at=datetime('now') WHERE id=? AND status='SCHEDULED'`).bind(payload.coverageCaseId),
-      ]);
-      return {activated:true};
-    });
-    await step.sleepUntil('wait-for-coverage-end',new Date(`${payload.endsOn}T23:59:59.000Z`));
-    return await step.do('mark-return-due',async()=>{
-      const id=crypto.randomUUID();
-      const coverage=await this.env.DB.prepare(`SELECT organization_id FROM coverage_cases WHERE id=?`).bind(payload.coverageCaseId).first<{organization_id:string}>();
-      if(coverage)await this.env.DB.prepare(`INSERT INTO notifications(id,organization_id,entity_type,entity_id,channel,recipient,template_key,payload_json,status) VALUES(?,?,'COVERAGE_CASE',?,'IN_APP','SYSTEM','RETURN_TO_BASE',?,'PENDING')`).bind(id,coverage.organization_id,payload.coverageCaseId,JSON.stringify({coverageCaseId:payload.coverageCaseId,action:'COMPLETE_DUE'})).run();
-      return {returnDue:true};
-    });
-  }
-}
+import { WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep } from 'cloudflare:workers';import { Temporal } from '@js-temporal/polyfill';import type { AppEnv,AuthUser } from './env.js';import { completeRotationAssignment } from './services/rotation-service.js';import { AuditWriter } from '@yrak/audit';
+interface CoverageWorkflowParams{coverageCaseId:string;startsOn:string;endsOn:string}
+function boundary(date:string,timeZone:string,end=false):number{return Temporal.PlainDate.from(date).toZonedDateTime({timeZone,plainTime:end?Temporal.PlainTime.from('23:59:59'):Temporal.PlainTime.from('00:00:00')}).toInstant().epochMilliseconds;}
+export class CoverageWorkflow extends WorkflowEntrypoint<AppEnv,CoverageWorkflowParams>{override async run(event:WorkflowEvent<CoverageWorkflowParams>,step:WorkflowStep){const schedule=await step.do('load-schedule',async()=>{const row=await this.env.DB.prepare(`SELECT c.id,c.organization_id,c.group_id,c.process_type,c.starts_on,c.ends_on,o.timezone FROM coverage_cases c JOIN organizations o ON o.id=c.organization_id WHERE c.id=?`).bind(event.payload.coverageCaseId).first<any>();if(!row)throw new Error('COVERAGE_NOT_FOUND');return row;});await step.sleepUntil('wait-for-coverage-start',boundary(schedule.starts_on,schedule.timezone));await step.do('activate-assignment',async()=>{const current=await this.env.DB.prepare(`SELECT status FROM coverage_cases WHERE id=?`).bind(schedule.id).first<{status:string}>();if(current?.status!=='SCHEDULED')return{skipped:true,status:current?.status};await this.env.DB.batch([this.env.DB.prepare(`UPDATE temporary_assignments SET status='ACTIVE',version=version+1 WHERE coverage_case_id=? AND status='SCHEDULED'`).bind(schedule.id),this.env.DB.prepare(`UPDATE coverage_cases SET status='ACTIVE',version=version+1,updated_at=datetime('now') WHERE id=? AND status='SCHEDULED'`).bind(schedule.id)]);return{activated:true};});await step.sleepUntil('wait-for-coverage-end',boundary(schedule.ends_on,schedule.timezone,true));return await step.do('return-to-base-and-close',async()=>{const current=await this.env.DB.prepare(`SELECT * FROM coverage_cases WHERE id=?`).bind(schedule.id).first<any>();if(!current||['COMPLETED','CANCELLED'].includes(current.status))return{skipped:true,status:current?.status};const system:AuthUser={id:'SYSTEM',organizationId:schedule.organization_id,email:'system@yrak.local',role:'ADMIN'};if(schedule.process_type==='ROTATION')return completeRotationAssignment(this.env,system,current,`workflow:${schedule.id}`);await this.env.DB.batch([this.env.DB.prepare(`UPDATE temporary_assignments SET status='COMPLETED',returned_at=datetime('now'),version=version+1 WHERE coverage_case_id=? AND status IN ('APPROVED','SCHEDULED','ACTIVE')`).bind(schedule.id),this.env.DB.prepare(`UPDATE coverage_cases SET status='COMPLETED',version=version+1,updated_at=datetime('now') WHERE id=?`).bind(schedule.id)]);await new AuditWriter(this.env.DB).append({organizationId:schedule.organization_id,actorId:'SYSTEM',actorRole:'ADMIN',entityType:'COVERAGE_CASE',entityId:schedule.id,action:'AUTOMATIC_RETURN_TO_BASE',newValue:{completed:true},ruleApplied:'RETURN_TO_BASE',correlationId:`workflow:${schedule.id}`});return{completed:true};});}}

@@ -14,7 +14,9 @@ export class GroupCoordinator extends DurableObject<AppEnv> {
   async reserve(employeeId: string, coverageCaseId: string, ttlMs = 15 * 60_000): Promise<{ reserved: boolean; existingCaseId?: string }> {
     const now = Date.now();
     this.ctx.storage.sql.exec('DELETE FROM reservations WHERE expires_at <= ?', now);
-    const existing = this.ctx.storage.sql.exec<{ coverage_case_id: string }>('SELECT coverage_case_id FROM reservations WHERE employee_id = ?', employeeId).oneOrNone();
+    const cursor = this.ctx.storage.sql.exec<{ coverage_case_id: string }>('SELECT coverage_case_id FROM reservations WHERE employee_id = ?', employeeId);
+    const first = cursor.next();
+    const existing = first.done ? undefined : first.value;
     if (existing && existing.coverage_case_id !== coverageCaseId) return { reserved: false, existingCaseId: existing.coverage_case_id };
     this.ctx.storage.sql.exec(`INSERT INTO reservations (employee_id, coverage_case_id, expires_at) VALUES (?, ?, ?)
       ON CONFLICT(employee_id) DO UPDATE SET coverage_case_id = excluded.coverage_case_id, expires_at = excluded.expires_at`, employeeId, coverageCaseId, now + ttlMs);
