@@ -4,8 +4,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "observability": { "enabled": true },
-  "vars": {
-    "APP_ENV": "development",
-    "DEFAULT_TIMEZONE": "America/Mexico_City"
-  }
+  "vars": { "APP_ENV": "development", "DEFAULT_TIMEZONE": "America/Mexico_City" },
+  "d1_databases": [{ "binding": "DB", "database_name": "yrak-suterm-coberturas", "database_id": "REPLACE_WITH_D1_DATABASE_ID", "migrations_dir": "../../migrations" }],
+  "r2_buckets": [{ "binding": "EVIDENCE_BUCKET", "bucket_name": "yrak-suterm-evidence" }],
+  "durable_objects": { "bindings": [{ "name": "GROUP_COORDINATOR", "class_name": "GroupCoordinator" }] },
+  "exports": { "GroupCoordinator": { "type": "durable-object", "storage": "sqlite" } },
+  "workflows": [{ "name": "yrak-coverage-workflow", "binding": "COVERAGE_WORKFLOW", "class_name": "CoverageWorkflow" }],
+  "queues": { "producers": [{ "binding": "NOTIFICATIONS_QUEUE", "queue": "yrak-notifications" }] }
 }

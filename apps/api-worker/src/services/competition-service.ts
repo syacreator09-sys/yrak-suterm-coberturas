@@ -1,0 +1,54 @@
+import { evaluateEligibility, type EmployeeRequirementRecord, type RequirementDefinition } from '@yrak/eligibility';
+import { rankCompetition } from '@yrak/competition';
+import type { EmployeeId, RequirementId } from '@yrak/domain';
+import type { AppEnv, AuthUser } from '../env.js';
+import { AuditWriter } from '@yrak/audit';
+import { getSingleSourceLevel } from './transition-service.js';
+
+interface CaseRow { id:string; organization_id:string; group_id:string; target_level_id:string; starts_on:string; ends_on:string; process_type:string; status:string }
+
+export async function evaluateCompetitionCandidates(env: AppEnv, user: AuthUser, caseRow: CaseRow, correlationId: string) {
+  if (caseRow.process_type !== 'COMPETITION') throw new Error('NOT_COMPETITION_CASE');
+  const sourceLevelId = await getSingleSourceLevel(env, caseRow.group_id, caseRow.target_level_id);
+  const employees = await env.DB.prepare(`SELECT e.id, e.employee_number, e.seniority_date FROM employees e
+    WHERE e.organization_id = ? AND e.group_id = ? AND e.base_level_id = ? AND e.active = 1
+      AND NOT EXISTS (SELECT 1 FROM employee_unavailability u WHERE u.employee_id=e.id AND u.starts_on <= ? AND u.ends_on >= ?)
+      AND NOT EXISTS (SELECT 1 FROM temporary_assignments a WHERE a.employee_id=e.id AND a.status IN ('APPROVED','SCHEDULED','ACTIVE') AND a.starts_on <= ? AND a.ends_on >= ?)`)
+    .bind(caseRow.organization_id, caseRow.group_id, sourceLevelId, caseRow.ends_on, caseRow.starts_on, caseRow.ends_on, caseRow.starts_on)
+    .all<{ id:string; employee_number:string; seniority_date:string | null }>();
+  const reqRows = await env.DB.prepare(`SELECT tlr.requirement_id, tlr.mandatory, tlr.valid_for_entire_coverage FROM target_level_requirements tlr JOIN requirements r ON r.id=tlr.requirement_id WHERE tlr.target_level_id=? AND r.active=1`)
+    .bind(caseRow.target_level_id).all<{ requirement_id:string; mandatory:number; valid_for_entire_coverage:number }>();
+  const definitions: RequirementDefinition[] = (reqRows.results ?? []).map((r) => ({ id:r.requirement_id as RequirementId, mandatory:Boolean(r.mandatory), validForEntireCoverage:Boolean(r.valid_for_entire_coverage) }));
+  let competition = await env.DB.prepare('SELECT id FROM competitions WHERE coverage_case_id=?').bind(caseRow.id).first<{ id:string }>();
+  if (!competition) {
+    const id=crypto.randomUUID();
+    await env.DB.prepare(`INSERT INTO competitions (id, coverage_case_id, minimum_score, tie_breaker, status) VALUES (?, ?, 0, 'SENIORITY', 'OPEN')`).bind(id,caseRow.id).run();
+    competition={id};
+  }
+  const output=[];
+  for (const employee of employees.results ?? []) {
+    const recordRows = await env.DB.prepare(`SELECT requirement_id,status,valid_until FROM employee_requirements WHERE employee_id=?`).bind(employee.id).all<{ requirement_id:string; status:EmployeeRequirementRecord['status']; valid_until:string|null }>();
+    const records: EmployeeRequirementRecord[]=(recordRows.results ?? []).map((r)=>({ requirementId:r.requirement_id as RequirementId,status:r.status,...(r.valid_until?{validUntil:r.valid_until}:{}) }));
+    const result=evaluateEligibility({ employeeId:employee.id as EmployeeId,requirements:definitions,records,coverageStart:caseRow.starts_on,coverageEnd:caseRow.ends_on });
+    await env.DB.prepare(`INSERT INTO competition_candidates (id,competition_id,employee_id,eligibility_status,eligibility_json) VALUES (?,?,?,?,?)
+      ON CONFLICT(competition_id,employee_id) DO UPDATE SET eligibility_status=excluded.eligibility_status, eligibility_json=excluded.eligibility_json`)
+      .bind(crypto.randomUUID(),competition.id,employee.id,result.eligible?'ELIGIBLE':'INELIGIBLE',JSON.stringify(result)).run();
+    await env.DB.prepare(`INSERT INTO coverage_candidate_evaluations (id,coverage_case_id,employee_id,process_type,eligible,reason_codes_json,snapshot_json) VALUES (?,?,?,'COMPETITION',?,?,?)`)
+      .bind(crypto.randomUUID(),caseRow.id,employee.id,result.eligible?1:0,JSON.stringify(result.reasons.map((x)=>x.code)),JSON.stringify(result)).run();
+    output.push({ employeeId:employee.id,employeeNumber:employee.employee_number,seniorityDate:employee.seniority_date, ...result });
+  }
+  await env.DB.prepare(`UPDATE coverage_cases SET status='COMPETITION_OPEN',version=version+1,updated_at=datetime('now') WHERE id=?`).bind(caseRow.id).run();
+  await new AuditWriter(env.DB).append({organizationId:caseRow.organization_id,actorId:user.id,actorRole:user.role,entityType:'COMPETITION',entityId:competition.id,action:'ELIGIBILITY_EVALUATED',newValue:output,ruleApplied:'LONG_COVERAGE_ELIGIBILITY',correlationId});
+  return { competitionId:competition.id, sourceLevelId, candidates:output };
+}
+
+export async function calculateCompetitionRanking(env:AppEnv,user:AuthUser,competitionId:string,correlationId:string){
+  const competition=await env.DB.prepare(`SELECT c.id,c.minimum_score,c.tie_breaker,cc.organization_id,cc.id coverage_case_id FROM competitions c JOIN coverage_cases cc ON cc.id=c.coverage_case_id WHERE c.id=?`).bind(competitionId).first<{id:string;minimum_score:number;tie_breaker:'SENIORITY'|'EMPLOYEE_NUMBER';organization_id:string;coverage_case_id:string}>();
+  if(!competition) throw new Error('COMPETITION_NOT_FOUND');
+  const rows=await env.DB.prepare(`SELECT cc.employee_id,cc.exam_score,cc.eligibility_status,e.employee_number,e.seniority_date FROM competition_candidates cc JOIN employees e ON e.id=cc.employee_id WHERE cc.competition_id=?`).bind(competitionId).all<{employee_id:string;exam_score:number|null;eligibility_status:string;employee_number:string;seniority_date:string|null}>();
+  const ranking=rankCompetition({minimumScore:competition.minimum_score,tieBreaker:competition.tie_breaker,candidates:(rows.results??[]).map(r=>({employeeId:r.employee_id as EmployeeId,employeeNumber:r.employee_number,eligible:r.eligibility_status==='ELIGIBLE',...(r.exam_score!==null?{examScore:r.exam_score}:{}),...(r.seniority_date?{seniorityDate:r.seniority_date}:{})}))});
+  await env.DB.batch(ranking.map(r=>env.DB.prepare(`UPDATE competition_candidates SET rank=?,result_status=? WHERE competition_id=? AND employee_id=?`).bind(r.rank,r.rank===1?'PROVISIONAL_WINNER':'RANKED',competitionId,r.employeeId)));
+  await env.DB.prepare(`UPDATE coverage_cases SET status='RESULT_PENDING',version=version+1,updated_at=datetime('now') WHERE id=?`).bind(competition.coverage_case_id).run();
+  await new AuditWriter(env.DB).append({organizationId:competition.organization_id,actorId:user.id,actorRole:user.role,entityType:'COMPETITION',entityId:competitionId,action:'RANKING_CALCULATED',newValue:ranking,ruleApplied:`EXAM_SCORE_THEN_${competition.tie_breaker}`,correlationId});
+  return ranking;
+}

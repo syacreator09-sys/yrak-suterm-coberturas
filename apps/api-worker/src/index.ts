@@ -1,14 +1,23 @@
 import { Hono } from 'hono';
-import type { AppEnv } from './env.js';
+import type { AppBindings } from './env.js';
+import { authenticate,correlation } from './middleware.js';
+import { configurationRoutes } from './routes/configuration.js';
+import { employeeRoutes } from './routes/employees.js';
+import { coverageRoutes } from './routes/coverages.js';
+import { competitionRoutes } from './routes/competitions.js';
+import { auditRoutes } from './routes/audit.js';
 
-const app = new Hono<{ Bindings: AppEnv }>();
-
-app.get('/health', (c) => c.json({ ok: true, service: 'yrak-suterm-coberturas-api' }));
-app.get('/ready', (c) => c.json({ ok: true, databaseConfigured: Boolean(c.env.DB) }));
-
-app.onError((error, c) => {
-  console.error(error);
-  return c.json({ error: 'INTERNAL_ERROR', message: 'Error interno' }, 500);
-});
-
+const app=new Hono<AppBindings>();
+app.use('*',correlation);
+app.get('/health',c=>c.json({ok:true,service:'yrak-suterm-coberturas-api'}));
+app.get('/ready',c=>c.json({ok:true,databaseConfigured:Boolean(c.env.DB),coordinatorConfigured:Boolean(c.env.GROUP_COORDINATOR)}));
+app.use('/v1/*',authenticate);
+app.route('/v1/config',configurationRoutes);
+app.route('/v1/employees',employeeRoutes);
+app.route('/v1/coverage-cases',coverageRoutes);
+app.route('/v1/competitions',competitionRoutes);
+app.route('/v1/audit',auditRoutes);
+app.onError((error,c)=>{console.error(error);const message=error instanceof Error?error.message:'INTERNAL_ERROR';const status=message.endsWith('_NOT_FOUND')?404:message.endsWith('_FORBIDDEN')?403:400;return c.json({error:message},status as 400);});
+export { GroupCoordinator } from './group-coordinator.js';
+export { CoverageWorkflow } from './workflow.js';
 export default app;
