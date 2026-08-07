@@ -1,0 +1,9 @@
+# Copiar como apps/api-worker/.dev.vars o cargar con `wrangler secret put`.
+BOOTSTRAP_TOKEN=replace_me
+# Sólo si AI_PROVIDER=openai
+OPENAI_API_KEY=replace_me
+# Sólo si AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=replace_me
+
+# MCP (apps/mcp-worker)
+MCP_API_TOKEN=replace_me
