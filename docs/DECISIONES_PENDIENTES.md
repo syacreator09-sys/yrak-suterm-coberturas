@@ -1,13 +1,12 @@
 # Decisiones pendientes configurables
 
-Estas reglas no se inventan en código hasta tener definición oficial:
+No se inventan políticas laborales. El software distingue configuración técnica de regla oficial.
 
-- Cómputo oficial por días naturales, laborales o turnos.
-- Regla exacta de desempate del examen.
-- Efecto de rechazo voluntario en la fila corta.
-- Tratamiento de una ausencia justificada respecto a posición en cola.
-- Quién firma formalmente cada tipo de aprobación.
-- Cuándo una cobertura produce cadena hacia niveles inferiores.
-- Vigencia de certificaciones: al inscribirse, al iniciar o durante todo el periodo.
-
-Mientras no estén confirmadas, se modelan mediante políticas versionadas con valores explícitos por organización/grupo.
+- **Conteo de días:** configurable `CALENDAR_DAYS`, `WORKING_DAYS` o `SHIFTS`.
+- **Desempate y calificación mínima:** el concurso queda `rules_confirmed=0` hasta que un usuario autorizado capture y confirme ambos valores; no puede calcular ranking antes.
+- **Rechazo voluntario en rotación:** campo de política `rejectionConsumesTurn`; falta fijar valor oficial por grupo.
+- **Cancelación de rotación ya iniciada:** la API exige que el responsable indique expresamente si consume turno; no adivina.
+- **Ausencia justificada y posición:** pendiente de norma oficial; el motor actualmente salta indisponibles sin moverlos al final.
+- **Firma formal:** roles técnicos existen, pero el rol oficial que firma cada acto debe definirse con CFE/SUTERM.
+- **Cascada:** soportada y configurable con `cascadeEnabled`; por defecto está desactivada hasta confirmar que ese grupo debe encadenar todos los huecos.
+- **Vigencia:** cada requisito puede exigir vigencia al inicio o durante toda la cobertura.
