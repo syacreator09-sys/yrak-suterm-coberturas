@@ -1,0 +1,20 @@
+{
+  "groups": [
+    {
+      "id": "grupo-demo-a",
+      "name": "Grupo Demo A",
+      "description": "Ejemplo reemplazable con estructura real",
+      "levels": [
+        { "id": "nivel-5", "number": 5, "name": "Nivel 5", "rankOrder": 5 },
+        { "id": "nivel-6", "number": 6, "name": "Nivel 6", "rankOrder": 6 },
+        { "id": "nivel-7", "number": 7, "name": "Nivel 7", "rankOrder": 7 },
+        { "id": "nivel-8", "number": 8, "name": "Nivel 8", "rankOrder": 8 }
+      ],
+      "transitions": [
+        { "sourceLevelId": "nivel-5", "targetLevelId": "nivel-6" },
+        { "sourceLevelId": "nivel-6", "targetLevelId": "nivel-7" },
+        { "sourceLevelId": "nivel-7", "targetLevelId": "nivel-8" }
+      ]
+    }
+  ]
+}
