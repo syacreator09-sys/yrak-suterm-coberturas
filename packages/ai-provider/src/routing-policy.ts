@@ -26,9 +26,8 @@ export function createDefaultRoutingPolicy(
   const workers = options.workersProviderId ?? 'workers-ai';
   const compatible = options.compatibleProviderId;
   const mock = options.mockProviderId ?? 'mock';
-  const localText = compatible ? [compatible, workers] : [workers];
-  const developmentText = compatible ? [compatible, workers] : [workers];
-  const cloudText = compatible ? [workers, compatible] : [workers];
+  const localOrder = compatible ? [compatible, workers] : [workers];
+  const cloudOrder = compatible ? [workers, compatible] : [workers];
 
   return {
     test: {
@@ -36,20 +35,20 @@ export function createDefaultRoutingPolicy(
       TRANSCRIPTION: [mock],
     },
     local: {
-      ...routesFor(localText),
-      TRANSCRIPTION: [workers],
+      ...routesFor(localOrder),
+      TRANSCRIPTION: localOrder,
     },
     development: {
-      ...routesFor(developmentText),
-      TRANSCRIPTION: [workers],
+      ...routesFor(localOrder),
+      TRANSCRIPTION: localOrder,
     },
     staging: {
-      ...routesFor(cloudText),
-      TRANSCRIPTION: [workers],
+      ...routesFor(cloudOrder),
+      TRANSCRIPTION: cloudOrder,
     },
     production: {
-      ...routesFor(cloudText),
-      TRANSCRIPTION: [workers],
+      ...routesFor(cloudOrder),
+      TRANSCRIPTION: cloudOrder,
     },
   };
 }
