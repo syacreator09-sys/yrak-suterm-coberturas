@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yrak-suterm-coberturas-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "development",
+    "DEFAULT_TIMEZONE": "America/Mexico_City"
+  }
+}
