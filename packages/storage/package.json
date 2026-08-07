@@ -1,0 +1,9 @@
+{
+  "name": "@yrak/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run --passWithNoTests", "lint": "tsc -p tsconfig.json --noEmit" },
+  "devDependencies": { "@cloudflare/workers-types": "^4.20250704.0", "typescript": "^5.8.3", "vitest": "^3.2.4" }
+}
