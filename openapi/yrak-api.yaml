@@ -1,0 +1,610 @@
+openapi: 3.1.0
+info:
+  title: YRAK SUTERM Coberturas API
+  version: 0.1.0
+  description: >-
+    API para coberturas temporales, rotaciones 1–5 días, concursos 6+,
+    requisitos, evidencias y auditoría. La IA no tiene autoridad de decisión.
+servers:
+  - url: https://REPLACE_WITH_API_HOST
+security:
+  - cloudflareAccess: []
+paths:
+  /health:
+    get:
+      security: []
+      operationId: health
+      responses:
+        '200': { description: Healthy }
+  /bootstrap:
+    post:
+      security: []
+      operationId: bootstrap
+      parameters:
+        - in: header
+          name: x-yrak-bootstrap-token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationName, adminEmail, adminDisplayName]
+              properties:
+                organizationId: { type: string }
+                organizationName: { type: string }
+                timezone: { type: string, default: America/Mexico_City }
+                adminEmail: { type: string, format: email }
+                adminDisplayName: { type: string }
+      responses:
+        '201': { description: Initial organization and administrator created }
+        '409': { description: Bootstrap already completed }
+  /v1/me:
+    get:
+      operationId: getMyPortal
+      responses:
+        '200': { description: Current user/employee portal data }
+  /v1/config/groups:
+    get:
+      operationId: listGroups
+      responses: { '200': { description: Groups } }
+    post:
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+      responses: { '201': { description: Group created } }
+  /v1/config/groups/{groupId}/levels:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      operationId: listLevels
+      responses: { '200': { description: Levels } }
+    post:
+      operationId: createLevel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [number, name, rankOrder]
+              properties:
+                number: { type: integer }
+                name: { type: string }
+                rankOrder: { type: integer }
+      responses: { '201': { description: Level created } }
+  /v1/config/groups/{groupId}/transitions:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    post:
+      operationId: createLevelTransition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceLevelId, targetLevelId]
+              properties:
+                sourceLevelId: { type: string }
+                targetLevelId: { type: string }
+      responses: { '201': { description: Authorized transition created } }
+  /v1/config/requirements:
+    get:
+      operationId: listRequirements
+      responses: { '200': { description: Requirements } }
+    post:
+      operationId: createRequirement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequirementInput' }
+      responses: { '201': { description: Requirement created } }
+  /v1/config/levels/{levelId}/requirements/{requirementId}:
+    put:
+      operationId: attachRequirementToTargetLevel
+      parameters:
+        - { in: path, name: levelId, required: true, schema: { type: string } }
+        - { in: path, name: requirementId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mandatory: { type: boolean, default: true }
+                validForEntireCoverage: { type: boolean, default: true }
+      responses: { '200': { description: Mapping updated } }
+  /v1/config/rotation-pools:
+    post:
+      operationId: createRotationPool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupId, sourceLevelId, targetLevelId, employeeIds]
+              properties:
+                groupId: { type: string }
+                sourceLevelId: { type: string }
+                targetLevelId: { type: string }
+                employeeIds: { type: array, items: { type: string }, minItems: 1 }
+      responses: { '201': { description: Rotation queue created } }
+  /v1/config/rotation-pools/{poolId}/queue:
+    get:
+      operationId: listRotationQueue
+      parameters:
+        - { in: path, name: poolId, required: true, schema: { type: string } }
+      responses: { '200': { description: Queue } }
+  /v1/config/users:
+    get:
+      operationId: listUsers
+      responses: { '200': { description: Users } }
+    post:
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserInput' }
+      responses: { '201': { description: User created } }
+  /v1/policies/groups/{groupId}/coverage:
+    parameters:
+      - $ref: '#/components/parameters/GroupId'
+    get:
+      operationId: getCoveragePolicy
+      responses: { '200': { description: Effective policy } }
+    post:
+      operationId: createCoveragePolicyVersion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoveragePolicyInput' }
+      responses: { '201': { description: Policy version created } }
+  /v1/employees:
+    get:
+      operationId: listEmployees
+      responses: { '200': { description: Employees } }
+    post:
+      operationId: createEmployee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeInput' }
+      responses: { '201': { description: Employee created } }
+  /v1/employees/{employeeId}/unavailability:
+    post:
+      operationId: createEmployeeUnavailability
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, startDate, endDate]
+              properties:
+                kind: { type: string, enum: [VACATION, SICK_LEAVE, PERMISSION, OTHER_ASSIGNMENT, MANUAL_BLOCK, OTHER] }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                reason: { type: [string, 'null'] }
+      responses: { '201': { description: Unavailability created } }
+  /v1/employees/{employeeId}/requirements/{requirementId}:
+    put:
+      operationId: setEmployeeRequirement
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+        - { in: path, name: requirementId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EmployeeRequirementInput' }
+      responses: { '200': { description: Compliance updated } }
+  /v1/coverage-cases/preview:
+    post:
+      operationId: previewCoverage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupId, startDate, endDate]
+              properties:
+                groupId: { type: string }
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+      responses:
+        '200':
+          description: Exact counted dates and ROTATION/COMPETITION decision
+  /v1/coverage-cases:
+    get:
+      operationId: listCoverageCases
+      responses: { '200': { description: Coverage cases } }
+    post:
+      operationId: createCoverageCase
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoverageCaseInput' }
+      responses:
+        '201': { description: Coverage created }
+        '409': { description: Idempotent operation in progress }
+  /v1/coverage-cases/{caseId}:
+    get:
+      operationId: getCoverageCase
+      parameters:
+        - $ref: '#/components/parameters/CaseId'
+      responses: { '200': { description: Coverage detail with assignments/evidence } }
+  /v1/coverage-cases/{caseId}/dates:
+    patch:
+      operationId: amendCoverageDates
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startDate, endDate, reason]
+              properties:
+                startDate: { type: string, format: date }
+                endDate: { type: string, format: date }
+                reason: { type: string }
+      responses:
+        '200': { description: Dates and process recalculated }
+        '409': { description: Case already assigned }
+  /v1/coverage-cases/{caseId}/rotation/select:
+    post:
+      operationId: selectRotationCandidate
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses: { '200': { description: Deterministic proposal and considered candidates } }
+  /v1/coverage-cases/{caseId}/rotation/reject:
+    post:
+      operationId: rejectRotationCandidate
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties: { reason: { type: string } }
+      responses: { '200': { description: Rejection recorded; queue policy applied } }
+  /v1/coverage-cases/{caseId}/approve:
+    post:
+      operationId: approveShortCoverage
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses: { '200': { description: Human approval persisted } }
+  /v1/coverage-cases/{caseId}/cancel:
+    post:
+      operationId: cancelCoverage
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                activeRotationConsumesTurn: { type: boolean }
+      responses: { '200': { description: Coverage and cascade descendants cancelled } }
+  /v1/coverage-cases/{caseId}/complete:
+    post:
+      operationId: completeCoverage
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses: { '200': { description: Manual recovery close/return } }
+  /v1/competitions/cases/{caseId}/evaluate:
+    post:
+      operationId: evaluateCompetitionEligibility
+      parameters: [ { $ref: '#/components/parameters/CaseId' } ]
+      responses:
+        '200': { description: Eligibility results }
+        '400': { description: Mandatory requirement missing from configuration }
+  /v1/competitions/{competitionId}:
+    get:
+      operationId: getCompetition
+      parameters: [ { $ref: '#/components/parameters/CompetitionId' } ]
+      responses: { '200': { description: Competition, candidates and score revisions } }
+  /v1/competitions/{competitionId}/config:
+    patch:
+      operationId: confirmCompetitionRules
+      parameters: [ { $ref: '#/components/parameters/CompetitionId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [minimumScore, tieBreaker]
+              properties:
+                minimumScore: { type: number, minimum: 0, maximum: 100 }
+                tieBreaker: { type: string, enum: [SENIORITY, EMPLOYEE_NUMBER] }
+      responses: { '200': { description: Exam rules confirmed } }
+  /v1/competitions/{competitionId}/candidates/{candidateId}/participation:
+    put:
+      operationId: respondCompetitionInvitation
+      parameters:
+        - $ref: '#/components/parameters/CompetitionId'
+        - { in: path, name: candidateId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accepted]
+              properties: { accepted: { type: boolean } }
+      responses: { '200': { description: Participation recorded } }
+  /v1/competitions/{competitionId}/candidates/{candidateId}/score:
+    put:
+      operationId: recordExamScore
+      parameters:
+        - $ref: '#/components/parameters/CompetitionId'
+        - { in: path, name: candidateId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score, reason]
+              properties:
+                score: { type: number, minimum: 0, maximum: 100 }
+                reason: { type: string }
+      responses:
+        '200': { description: Initial score recorded }
+        '202': { description: Change held for second approver }
+  /v1/competitions/score-revisions/{revisionId}/approve:
+    post:
+      operationId: approveScoreRevision
+      parameters:
+        - { in: path, name: revisionId, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Revision approved by different user }
+        '409': { description: Second approver required }
+  /v1/competitions/score-revisions/{revisionId}/reject:
+    post:
+      operationId: rejectScoreRevision
+      parameters:
+        - { in: path, name: revisionId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties: { reason: { type: string } }
+      responses: { '200': { description: Revision retained as rejected history } }
+  /v1/competitions/{competitionId}/rank:
+    post:
+      operationId: calculateCompetitionRanking
+      parameters: [ { $ref: '#/components/parameters/CompetitionId' } ]
+      responses:
+        '200': { description: Deterministic ranking }
+        '400': { description: Rules not confirmed or revision pending }
+  /v1/competitions/{competitionId}/award:
+    post:
+      operationId: awardCompetition
+      parameters: [ { $ref: '#/components/parameters/CompetitionId' } ]
+      responses:
+        '200': { description: Winner revalidated, reserved and human-approved }
+        '409': { description: Open appeal/conflict/pending revision }
+  /v1/appeals:
+    post:
+      operationId: createAppeal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [coverageCaseId, reason]
+              properties:
+                coverageCaseId: { type: string }
+                reason: { type: string }
+      responses: { '201': { description: Appeal opened } }
+  /v1/appeals/{appealId}/resolve:
+    put:
+      operationId: resolveAppeal
+      parameters:
+        - { in: path, name: appealId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, resolution]
+              properties:
+                status: { type: string, enum: [RESOLVED, REJECTED] }
+                resolution: { type: string }
+      responses: { '200': { description: Appeal resolved } }
+  /v1/attachments:
+    post:
+      operationId: uploadEvidence
+      parameters:
+        - { in: query, name: entityType, required: true, schema: { type: string, enum: [INTAKE, COVERAGE_CASE, EMPLOYEE, COMPETITION, APPEAL] } }
+        - { in: query, name: entityId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties: { file: { type: string, format: binary } }
+      responses: { '201': { description: R2 evidence stored with SHA-256 } }
+  /v1/intake/extract-text:
+    post:
+      operationId: extractCoverageDraftFromText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties: { content: { type: string } }
+      responses: { '201': { description: Human-review draft created } }
+  /v1/intake/attachments/{attachmentId}/process:
+    post:
+      operationId: processEvidenceIntoDraft
+      parameters:
+        - { in: path, name: attachmentId, required: true, schema: { type: string } }
+      responses: { '201': { description: Audio/document/image converted to review draft } }
+  /v1/intake/drafts:
+    get:
+      operationId: listIntakeDrafts
+      responses: { '200': { description: Draft review inbox } }
+  /v1/intake/drafts/{draftId}/consume:
+    post:
+      operationId: consumeReviewedDraft
+      parameters:
+        - { in: path, name: draftId, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CoverageCaseInput' }
+      responses: { '201': { description: Reviewed draft converted into one coverage case } }
+  /v1/import/catalog:
+    post:
+      operationId: importCatalog
+      responses: { '200': { description: Groups, levels and transitions imported } }
+  /v1/import/employees:
+    post:
+      operationId: importEmployees
+      responses: { '200': { description: Employees imported } }
+  /v1/import/requirements:
+    post:
+      operationId: importRequirements
+      responses: { '200': { description: Requirements imported } }
+  /v1/import/employee-requirements:
+    post:
+      operationId: importEmployeeRequirements
+      responses: { '200': { description: Compliance imported } }
+  /v1/import/users:
+    post:
+      operationId: importUsers
+      responses: { '200': { description: Users imported } }
+  /v1/import/holidays:
+    post:
+      operationId: importHolidays
+      responses: { '200': { description: Holidays imported } }
+  /v1/import/group-shifts:
+    post:
+      operationId: importGroupShifts
+      responses: { '200': { description: Shift dates imported } }
+  /v1/reports/employees.csv:
+    get:
+      operationId: exportEmployeesCsv
+      responses: { '200': { description: CSV export } }
+  /v1/reports/coverage-cases.csv:
+    get:
+      operationId: exportCoverageCasesCsv
+      responses: { '200': { description: CSV export } }
+  /v1/reports/audit.csv:
+    get:
+      operationId: exportAuditCsv
+      responses: { '200': { description: CSV export } }
+  /v1/audit/{entityType}/{entityId}:
+    get:
+      operationId: getAuditTrail
+      parameters:
+        - { in: path, name: entityType, required: true, schema: { type: string } }
+        - { in: path, name: entityId, required: true, schema: { type: string } }
+      responses: { '200': { description: Immutable audit timeline } }
+components:
+  securitySchemes:
+    cloudflareAccess:
+      type: apiKey
+      in: cookie
+      name: CF_Authorization
+      description: Session managed by Cloudflare Access. Development can use x-yrak-user-email only when APP_ENV=development.
+  parameters:
+    GroupId: { in: path, name: groupId, required: true, schema: { type: string } }
+    EmployeeId: { in: path, name: employeeId, required: true, schema: { type: string } }
+    CaseId: { in: path, name: caseId, required: true, schema: { type: string } }
+    CompetitionId: { in: path, name: competitionId, required: true, schema: { type: string } }
+  schemas:
+    EmployeeInput:
+      type: object
+      required: [employeeNumber, name, groupId, baseLevelId]
+      properties:
+        employeeNumber: { type: string }
+        name: { type: string }
+        email: { type: [string, 'null'], format: email }
+        groupId: { type: string }
+        baseLevelId: { type: string }
+        seniorityDate: { type: [string, 'null'], format: date }
+    RequirementInput:
+      type: object
+      required: [name, requirementType]
+      properties:
+        name: { type: string }
+        requirementType: { type: string, enum: [COURSE, CERTIFICATION, PREREQUISITE_EXAM, DOCUMENT, EXPERIENCE, OTHER] }
+        validityDays: { type: [integer, 'null'] }
+    EmployeeRequirementInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [COMPLIANT, MISSING, EXPIRED, PENDING, REJECTED, NOT_APPLICABLE] }
+        completedAt: { type: [string, 'null'], format: date }
+        validUntil: { type: [string, 'null'], format: date }
+        score: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        evidenceAttachmentId: { type: [string, 'null'] }
+    CoverageCaseInput:
+      type: object
+      required: [groupId, targetLevelId, startDate, endDate]
+      properties:
+        groupId: { type: string }
+        targetLevelId: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        reason: { type: [string, 'null'] }
+    CoveragePolicyInput:
+      type: object
+      required: [dayCountingMode, rejectionConsumesTurn, cascadeEnabled, cascadeMaximumDepth, effectiveFrom]
+      properties:
+        dayCountingMode: { type: string, enum: [CALENDAR_DAYS, WORKING_DAYS, SHIFTS] }
+        rejectionConsumesTurn: { type: boolean }
+        cascadeEnabled: { type: boolean }
+        cascadeMaximumDepth: { type: integer, minimum: 1, maximum: 20 }
+        effectiveFrom: { type: string, format: date }
+    UserInput:
+      type: object
+      required: [email, displayName, role]
+      properties:
+        email: { type: string, format: email }
+        displayName: { type: string }
+        role: { type: string, enum: [ADMIN, HR, SUPERVISOR, COMMITTEE, OPERATOR, EMPLOYEE, AUDITOR] }
+        employeeId: { type: [string, 'null'] }
+        groupIds: { type: array, items: { type: string } }
