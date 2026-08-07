@@ -57,12 +57,19 @@ export function isRetryableAIError(error: unknown): boolean {
     : '';
   if (name === 'AbortError' || name === 'ZodError') return true;
   const message = error instanceof Error ? error.message : String(error);
-  return ['AI_TIMEOUT', 'AI_COMPAT_EMPTY_RESPONSE', 'AI_JSON_NOT_FOUND'].some((code) => message.includes(code));
+  return [
+    'AI_TIMEOUT',
+    'AI_COMPAT_EMPTY_RESPONSE',
+    'AI_COMPAT_EMPTY_TRANSCRIPT',
+    'AI_COMPAT_INVALID_RESPONSE',
+    'AI_JSON_NOT_FOUND',
+  ].some((code) => message.includes(code));
 }
 
 function errorCode(error: unknown): string {
   const status = errorStatus(error);
   if (status !== undefined) return `HTTP_${status}`;
+  if (error instanceof Error && error.message.startsWith('AI_')) return error.message.split(':')[0]!;
   if (error instanceof Error && error.name) return error.name;
   return 'AI_PROVIDER_ERROR';
 }
