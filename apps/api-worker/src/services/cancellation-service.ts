@@ -1,0 +1,31 @@
+import type { AppEnv,AuthUser } from '../env.js';
+import { AuditWriter } from '@yrak/audit';
+import { moveCompletedCandidateToEnd, type RotationCandidate } from '@yrak/rotation';
+import type { EmployeeId } from '@yrak/domain';
+
+interface CaseRow{id:string;organization_id:string;group_id:string;process_type:string;status:string}
+
+export async function cancelCoverage(env:AppEnv,user:AuthUser,coverage:CaseRow,correlationId:string,input:{reason:string;activeRotationConsumesTurn?:boolean}){
+  if(['COMPLETED','CANCELLED'].includes(coverage.status))return {cancelled:coverage.status==='CANCELLED',idempotent:true,status:coverage.status};
+  const assignments=await env.DB.prepare(`SELECT id,employee_id,base_level_id,target_level_id,status FROM temporary_assignments WHERE coverage_case_id=? ORDER BY chain_order`).bind(coverage.id).all<{id:string;employee_id:string;base_level_id:string;target_level_id:string;status:string}>();
+  const active=(assignments.results??[]).some(a=>a.status==='ACTIVE');
+  if(active&&coverage.process_type==='ROTATION'&&input.activeRotationConsumesTurn===undefined)throw new Error('ACTIVE_ROTATION_CONSUMED_TURN_REQUIRED');
+  const statements:D1PreparedStatement[]=[env.DB.prepare(`UPDATE temporary_assignments SET status='CANCELLED',returned_at=CASE WHEN status='ACTIVE' THEN datetime('now') ELSE returned_at END,version=version+1 WHERE coverage_case_id=? AND status NOT IN ('COMPLETED','CANCELLED','REPLACED')`).bind(coverage.id),env.DB.prepare(`UPDATE coverage_cases SET status='CANCELLED',version=version+1,updated_at=datetime('now') WHERE id=?`).bind(coverage.id)];
+  let queueChange:null|{before:RotationCandidate[];after:RotationCandidate[]}=null;
+  const assignment=(assignments.results??[])[0];
+  if(assignment&&coverage.process_type==='ROTATION'){
+    const pool=await env.DB.prepare(`SELECT id FROM rotation_pools WHERE organization_id=? AND group_id=? AND source_level_id=? AND target_level_id=?`).bind(coverage.organization_id,coverage.group_id,assignment.base_level_id,assignment.target_level_id).first<{id:string}>();
+    if(pool&&active&&input.activeRotationConsumesTurn){
+      const rows=await env.DB.prepare(`SELECT employee_id,queue_position,status FROM rotation_queue_entries WHERE pool_id=? ORDER BY queue_position`).bind(pool.id).all<{employee_id:string;queue_position:number;status:RotationCandidate['availability']}>();
+      const before=(rows.results??[]).map(r=>({employeeId:r.employee_id as EmployeeId,position:r.queue_position,availability:r.status}));
+      const after=moveCompletedCandidateToEnd(before,assignment.employee_id as EmployeeId);queueChange={before,after};
+      statements.push(env.DB.prepare(`UPDATE rotation_queue_entries SET queue_position=queue_position+10000 WHERE pool_id=?`).bind(pool.id));
+      for(const item of after)statements.push(env.DB.prepare(`UPDATE rotation_queue_entries SET queue_position=?,status='AVAILABLE',times_selected=times_selected+CASE WHEN employee_id=? THEN 1 ELSE 0 END,version=version+1 WHERE pool_id=? AND employee_id=?`).bind(item.position,assignment.employee_id,pool.id,item.employeeId));
+      statements.push(env.DB.prepare(`INSERT INTO rotation_events(id,pool_id,employee_id,coverage_case_id,event_type,previous_position,new_position,reason,actor_id) VALUES(?,?,?,?,'MOVED_TO_END',?,?,'ACTIVE_CANCELLATION_CONSUMED_TURN',?)`).bind(crypto.randomUUID(),pool.id,assignment.employee_id,coverage.id,before.find(x=>x.employeeId===assignment.employee_id)?.position??null,after.find(x=>x.employeeId===assignment.employee_id)?.position??null,user.id));
+    }
+    await env.GROUP_COORDINATOR.getByName(coverage.group_id).release(assignment.employee_id,coverage.id);
+  }
+  await env.DB.batch(statements);
+  await new AuditWriter(env.DB).append({organizationId:coverage.organization_id,actorId:user.id,actorRole:user.role,entityType:'COVERAGE_CASE',entityId:coverage.id,action:'CANCELLED',previousValue:queueChange?.before,newValue:{reason:input.reason,active,activeRotationConsumesTurn:input.activeRotationConsumesTurn,queue:queueChange?.after},ruleApplied:active?'ACTIVE_CANCELLATION_POLICY':'PRE_START_CANCELLATION_PRESERVES_QUEUE',reason:input.reason,correlationId});
+  return {cancelled:true,active,queueChanged:Boolean(queueChange)};
+}

@@ -1,5 +1,4 @@
-import type { DateRange } from '@yrak/domain';
-import type { DayCountingMode } from '@yrak/domain';
+import type { DateRange, DayCountingMode } from '@yrak/domain';
 import { DomainError } from '@yrak/domain';
 
 export interface CalendarContext {
@@ -11,13 +10,11 @@ export interface CalendarContext {
 function parseDateOnly(value: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new DomainError('INVALID_DATE', `Fecha inválida: ${value}`);
   const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) throw new DomainError('INVALID_DATE', `Fecha inválida: ${value}`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new DomainError('INVALID_DATE', `Fecha inválida: ${value}`);
   return date;
 }
 
-function isoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
+function isoDate(date: Date): string { return date.toISOString().slice(0, 10); }
 
 export function enumerateDates(range: DateRange): string[] {
   const start = parseDateOnly(range.start);
@@ -28,18 +25,18 @@ export function enumerateDates(range: DateRange): string[] {
   return dates;
 }
 
-export function countEffectiveDays(range: DateRange, mode: DayCountingMode, context: CalendarContext = {}): number {
+export function computeCountedDates(range: DateRange, mode: DayCountingMode, context: CalendarContext = {}): string[] {
   const dates = enumerateDates(range);
-  if (mode === 'CALENDAR_DAYS') return dates.length;
+  if (mode === 'CALENDAR_DAYS') return dates;
   if (mode === 'SHIFTS') {
-    if (!context.shiftDates) throw new DomainError('SHIFT_CALENDAR_REQUIRED', 'Se requiere calendario de turnos');
-    return dates.filter((date) => context.shiftDates?.has(date)).length;
+    if (!context.shiftDates) throw new DomainError('SHIFT_CALENDAR_REQUIRED', 'Se requiere calendario de turnos del grupo');
+    return dates.filter((date) => context.shiftDates!.has(date));
   }
   const weekdays = context.workingWeekdays ?? new Set([1, 2, 3, 4, 5]);
   const holidays = context.holidays ?? new Set<string>();
-  return dates.filter((value) => {
-    if (holidays.has(value)) return false;
-    const weekday = parseDateOnly(value).getUTCDay();
-    return weekdays.has(weekday);
-  }).length;
+  return dates.filter((value) => !holidays.has(value) && weekdays.has(parseDateOnly(value).getUTCDay()));
+}
+
+export function countEffectiveDays(range: DateRange, mode: DayCountingMode, context: CalendarContext = {}): number {
+  return computeCountedDates(range, mode, context).length;
 }
