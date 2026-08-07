@@ -1,11 +1,1 @@
-{
-  "name": "@yrak/api-worker",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {"build":"wrangler deploy --dry-run --outdir dist","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run --passWithNoTests","lint":"tsc -p tsconfig.json --noEmit","dev":"wrangler dev"},
-  "dependencies": {
-    "@hono/zod-validator":"^0.7.2","@js-temporal/polyfill":"^0.5.1","@yrak/application":"workspace:*","@yrak/audit":"workspace:*","@yrak/assignments":"workspace:*","@yrak/competition":"workspace:*","@yrak/domain":"workspace:*","@yrak/eligibility":"workspace:*","@yrak/notifications":"workspace:*","@yrak/rotation":"workspace:*","@yrak/storage":"workspace:*","hono":"^4.8.3","zod":"^3.25.67"
-  },
-  "devDependencies":{"@cloudflare/workers-types":"^4.20250704.0","typescript":"^5.8.3","vitest":"^3.2.4","wrangler":"^4.24.3"}
-}
+{"name":"@yrak/api-worker","version":"0.1.0","private":true,"type":"module","scripts":{"build":"wrangler deploy --dry-run --outdir dist","typecheck":"tsc -p tsconfig.json --noEmit","test":"vitest run --passWithNoTests","lint":"tsc -p tsconfig.json --noEmit","dev":"wrangler dev"},"dependencies":{"@hono/zod-validator":"^0.7.2","@js-temporal/polyfill":"^0.5.1","@yrak/agents":"workspace:*","@yrak/ai-provider":"workspace:*","@yrak/application":"workspace:*","@yrak/audit":"workspace:*","@yrak/assignments":"workspace:*","@yrak/competition":"workspace:*","@yrak/domain":"workspace:*","@yrak/eligibility":"workspace:*","@yrak/notifications":"workspace:*","@yrak/rotation":"workspace:*","@yrak/storage":"workspace:*","hono":"^4.8.3","zod":"^3.25.67"},"devDependencies":{"@cloudflare/workers-types":"^4.20250704.0","typescript":"^5.8.3","vitest":"^3.2.4","wrangler":"^4.24.3"}}

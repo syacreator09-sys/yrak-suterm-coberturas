@@ -1,30 +1,19 @@
 # Reglas de negocio confirmadas
 
 ## Coberturas cortas
-
-Una cobertura cuya duración efectiva sea de **1 a 5 días inclusive** se resuelve por rotación. No requiere concurso, certificación ni examen de concurso. Se consideran personas activas del nivel inmediato inferior autorizado y disponibles para todo el periodo. Quien completa la cobertura consume su turno y pasa al final de la cola correspondiente.
+Una cobertura de **1 a 5 días inclusive** se resuelve por rotación. No requiere concurso, certificación ni examen de concurso. Se consideran personas activas del nivel inmediato inferior autorizado y disponibles para todo el periodo. Quien completa la cobertura consume su turno y pasa al final de la cola correspondiente.
 
 ## Coberturas largas
-
-Una cobertura de **6 días o más** requiere validar requisitos configurados para el nivel destino. Sólo las personas elegibles participan en el examen de concurso. El ranking y desempate se calculan por reglas versionadas; la IA no interviene en el resultado.
+Una cobertura de **6 días o más** valida requisitos configurados para el nivel destino. Sólo las personas elegibles participan en examen. Ranking y desempate son deterministas y versionados; la IA no interviene.
 
 ## Nivel base y temporal
+`baseLevelId` nunca se sustituye por la cobertura. Se crea una asignación temporal con nivel destino. Al cerrar, desaparece la asignación temporal y la persona vuelve operativamente a su nivel base.
 
-El trabajador conserva siempre `baseLevelId`. Una cobertura crea una `temporary_assignment` con `sourceLevelId`, `targetLevelId`, inicio y fin. Al cerrar, la asignación temporal termina; el nivel base permanece intacto.
+## Cascada configurable
+Una organización puede habilitar `cascadeEnabled`. Cuando está activa, aprobar 7→8 crea el expediente hijo para cubrir el hueco del nivel 7 mediante la transición 6→7; al aprobar ese expediente puede crearse 5→6, hasta `cascadeMaximumDepth`. Cada expediente hijo conserva sus propias reglas de rotación o concurso y requiere su propia validación/aprobación. No se inventan transiciones: todas deben existir en `level_transitions`.
 
-## Ejemplo
-
-Si una persona tiene nivel base 7 y cubre nivel 8, su registro queda:
-
-- nivel base: 7
-- asignación temporal: 8
-- periodo: fechas del expediente
-- al finalizar: vuelve operativamente a nivel 7
-
-## Cascadas
-
-El sistema soporta cadenas como 7→8, 6→7 y 5→6 sólo cuando cada transición esté autorizada y la política del grupo indique que el hueco generado requiere nueva cobertura.
+## Concurrencia
+La reserva se coordina por grupo con Durable Objects. Si el primer candidato ya está reservado por otro expediente simultáneo, el motor lo documenta y prueba con el siguiente disponible. D1 refleja `RESERVED`/`ASSIGNED` para operación y un reconciliador libera reservas D1 huérfanas.
 
 ## Auditoría
-
-Debe conservarse: candidatos considerados, exclusiones con motivo, estado de fila antes/después, regla aplicada, aprobaciones, calificaciones y correcciones.
+Se conserva candidatos considerados, exclusiones con motivo, cola antes/después, regla aplicada, aprobaciones, calificaciones, revisiones y conexiones MCP.
