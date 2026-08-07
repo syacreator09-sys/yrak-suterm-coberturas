@@ -21,20 +21,22 @@ function profile(env: Env): AIProfile {
 
 export function createAIRouter(env: Env): YrakAIRouter {
   const registry = new AIProviderRegistry();
-  const workersTextModel = env.WORKERS_AI_TEXT_MODEL ?? '@cf/meta/llama-3.1-8b-instruct-fast';
 
-  registry.register({
-    id: 'workers-ai',
-    provider: new WorkersAIProvider(
-      env.AI as unknown as { run(model: string, input: unknown): Promise<unknown> },
-      {
-        textModel: workersTextModel,
-        transcriptionModel: env.WORKERS_AI_TRANSCRIPTION_MODEL ?? '@cf/openai/whisper-large-v3-turbo',
-      },
-    ),
-    model: workersTextModel,
-    capabilities: ['generate', 'extract', 'transcribe'],
-  });
+  if (env.AI) {
+    const workersTextModel = env.WORKERS_AI_TEXT_MODEL ?? '@cf/meta/llama-3.1-8b-instruct-fast';
+    registry.register({
+      id: 'workers-ai',
+      provider: new WorkersAIProvider(
+        env.AI as unknown as { run(model: string, input: unknown): Promise<unknown> },
+        {
+          textModel: workersTextModel,
+          transcriptionModel: env.WORKERS_AI_TRANSCRIPTION_MODEL ?? '@cf/openai/whisper-large-v3-turbo',
+        },
+      ),
+      model: workersTextModel,
+      capabilities: ['generate', 'extract', 'transcribe'],
+    });
+  }
 
   const compatibleId = env.AI_COMPAT_PROVIDER_ID?.trim();
   if (compatibleId && env.AI_COMPAT_BASE_URL && env.AI_COMPAT_TEXT_MODEL) {
@@ -61,7 +63,7 @@ export function createAIRouter(env: Env): YrakAIRouter {
 
   return new YrakAIRouter(
     registry,
-    createDefaultRoutingPolicy({ compatibleProviderId: compatibleId }),
+    createDefaultRoutingPolicy(compatibleId ? { compatibleProviderId: compatibleId } : {}),
     { maxAttempts: positiveInt(env.AI_MAX_PROVIDER_ATTEMPTS, 2) },
   );
 }
