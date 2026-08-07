@@ -1,6 +1,6 @@
 # FINAL HANDOFF — sólo conexiones y ejecución
 
-La rama autoritativa es `build/clean-v1`. El PR asociado debe permanecer Draft hasta ejecutar validación.
+La rama autoritativa es `main`. `build/clean-v1` se conserva como snapshot de la construcción limpia que fue integrada mediante el PR #2. `build/end-to-end-v1` queda únicamente como histórico experimental y no debe fusionarse. El estado previo de `main` quedó preservado en `archive/main-before-clean-v1`.
 
 ## A. Recursos Cloudflare
 
