@@ -9,7 +9,8 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "lint": "turbo run lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "smoke:ai": "node scripts/smoke-ai-provider.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
