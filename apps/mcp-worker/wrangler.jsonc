@@ -1,0 +1,1 @@
+{"$schema":"node_modules/wrangler/config-schema.json","name":"yrak-suterm-mcp","main":"src/index.ts","compatibility_date":"2026-08-01","vars":{"MCP_API_TOKEN":"REPLACE_WITH_SECRET_NOT_PLAINTEXT"},"d1_databases":[{"binding":"DB","database_name":"yrak-suterm-coberturas","database_id":"REPLACE_WITH_D1_DATABASE_ID"}]}
