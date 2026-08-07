@@ -44,7 +44,7 @@ export class YrakAgentSession extends DurableObject<Env> {
     if (kind === 'intake') {
       const text = String(input.text ?? '');
       if (!text.trim()) throw new Error('TEXT_REQUIRED');
-      result = await new IntakeAgent(provider(this.env)).extractFromText(text);
+      result = await new IntakeAgent(provider(this.env, 'INTAKE_EXTRACTION')).extractFromText(text);
     } else if (kind === 'audit') {
       const entityType = String(input.entityType ?? '');
       const entityId = String(input.entityId ?? '');
@@ -57,7 +57,7 @@ export class YrakAgentSession extends DurableObject<Env> {
         .bind(organizationId, entityType, entityId)
         .all();
       const facts = rows.results ?? [];
-      const explanation = await provider(this.env).generate({
+      const explanation = await provider(this.env, 'AUDIT_EXPLANATION').generate({
         system:
           'Eres el agente de auditoría YRAK. Explica únicamente los hechos entregados. No inventes motivos, reglas ni personas. Si la evidencia no alcanza, dilo. Eres solo lectura.',
         prompt: JSON.stringify({
@@ -82,7 +82,7 @@ export class YrakAgentSession extends DurableObject<Env> {
         .bind(caseId, organizationId)
         .first();
       if (!facts) throw new Error('COVERAGE_NOT_FOUND');
-      const draft = await provider(this.env).generate({
+      const draft = await provider(this.env, 'COMMUNICATION_DRAFT').generate({
         system:
           'Redacta un borrador institucional claro y breve sobre una cobertura laboral usando sólo los datos proporcionados. No anuncies un ganador ni una asignación si el estado no lo confirma. No envíes nada; sólo redacta.',
         prompt: JSON.stringify({ purpose: input.purpose ?? 'notification', facts }),
@@ -94,7 +94,7 @@ export class YrakAgentSession extends DurableObject<Env> {
         ORDER BY effective_from DESC,version DESC LIMIT 20`)
         .bind(organizationId)
         .all();
-      const answer = await provider(this.env).generate({
+      const answer = await provider(this.env, 'SUPPORT_RESPONSE').generate({
         system:
           'Eres soporte de YRAK Coberturas. Reglas duras: 1–5 días = rotación; 6+ = requisitos y concurso; el nivel base nunca cambia; IA nunca selecciona ganadores. Si preguntan por una política no presente, indica que debe confirmarse oficialmente.',
         prompt: JSON.stringify({
