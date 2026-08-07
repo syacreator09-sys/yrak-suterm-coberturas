@@ -1,9 +1,35 @@
-# Copiar como apps/api-worker/.dev.vars o cargar con `wrangler secret put`.
+# Copiar como apps/api-worker/.dev.vars o cargar secretos con `wrangler secret put`.
 BOOTSTRAP_TOKEN=replace_me
+
+# Proveedor API principal: workers-ai | openai | anthropic | compatible
+AI_PROVIDER=workers-ai
+
 # Sólo si AI_PROVIDER=openai
 OPENAI_API_KEY=replace_me
+
 # Sólo si AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=replace_me
+
+# Cualquier endpoint OpenAI-compatible. Sirve para NVIDIA NIM, Ollama, Groq,
+# Together, OpenRouter, vLLM, LM Studio, llama.cpp y otros compatibles.
+# Para NVIDIA NIM (ejemplo):
+# AI_PROVIDER=compatible
+# AI_COMPAT_PROVIDER_ID=nvidia-nim
+# AI_COMPAT_BASE_URL=https://integrate.api.nvidia.com/v1
+# AI_COMPAT_TEXT_MODEL=<modelo>
+# AI_COMPAT_API_KEY=<guardar como secret>
+#
+# Para Ollama local (ejemplo):
+# AI_PROVIDER=compatible
+# AI_COMPAT_PROVIDER_ID=ollama-local
+# AI_COMPAT_BASE_URL=http://127.0.0.1:11434/v1
+# AI_COMPAT_TEXT_MODEL=qwen3:8b
+# No necesita AI_COMPAT_API_KEY si el endpoint local no exige autenticación.
+AI_REQUEST_TIMEOUT_MS=30000
+
+# Agent Worker: routing/fallback. Workers AI sigue siendo el cloud primary por defecto.
+AI_PROFILE=production
+AI_MAX_PROVIDER_ATTEMPTS=2
 
 # MCP (apps/mcp-worker)
 MCP_API_TOKEN=replace_me
