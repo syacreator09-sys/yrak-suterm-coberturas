@@ -1,0 +1,6 @@
+{
+  "items": [
+    { "id": "req-cert-demo", "name": "Certificación / requisito demo para nivel 8", "requirementType": "CERTIFICATION", "validityDays": 365 },
+    { "id": "req-course-demo", "name": "Curso demo", "requirementType": "COURSE", "validityDays": null }
+  ]
+}
