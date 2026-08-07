@@ -1,0 +1,8 @@
+{
+  "items": [
+    { "employeeNumber": "D-7001", "name": "Persona Demo 7A", "email": "persona7a@example.com", "groupId": "grupo-demo-a", "baseLevelId": "nivel-7", "seniorityDate": "2018-01-10" },
+    { "employeeNumber": "D-7002", "name": "Persona Demo 7B", "email": "persona7b@example.com", "groupId": "grupo-demo-a", "baseLevelId": "nivel-7", "seniorityDate": "2020-03-15" },
+    { "employeeNumber": "D-6001", "name": "Persona Demo 6A", "email": "persona6a@example.com", "groupId": "grupo-demo-a", "baseLevelId": "nivel-6", "seniorityDate": "2019-06-20" },
+    { "employeeNumber": "D-5001", "name": "Persona Demo 5A", "email": "persona5a@example.com", "groupId": "grupo-demo-a", "baseLevelId": "nivel-5", "seniorityDate": "2021-09-01" }
+  ]
+}
