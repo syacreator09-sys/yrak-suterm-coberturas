@@ -29,6 +29,16 @@ export interface OpenAICompatibleProviderConfig {
   fetchImpl?: typeof fetch;
 }
 
+async function readJson<T>(response: Response): Promise<T | null> {
+  const raw = await response.text();
+  if (!raw.trim()) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 export class OpenAICompatibleProvider implements AIProvider {
   constructor(private readonly config: OpenAICompatibleProviderConfig) {}
 
@@ -73,14 +83,15 @@ export class OpenAICompatibleProvider implements AIProvider {
         ],
       }),
     });
-    const json = await response.json() as ChatCompletionsResponse;
+    const json = await readJson<ChatCompletionsResponse>(response);
     if (!response.ok) {
       throw new AIProviderHttpError(
         this.config.providerId,
         response.status,
-        json.error?.message ?? `AI_COMPAT_HTTP_${response.status}`,
+        json?.error?.message ?? `AI_COMPAT_HTTP_${response.status}`,
       );
     }
+    if (!json) throw new Error('AI_COMPAT_INVALID_RESPONSE');
     const text = json.choices?.[0]?.message?.content?.trim();
     if (!text) throw new Error('AI_COMPAT_EMPTY_RESPONSE');
     return text;
@@ -111,14 +122,15 @@ export class OpenAICompatibleProvider implements AIProvider {
       headers: this.headers(false),
       body: form,
     });
-    const json = await response.json() as { text?: string; error?: { message?: string } };
+    const json = await readJson<{ text?: string; error?: { message?: string } }>(response);
     if (!response.ok) {
       throw new AIProviderHttpError(
         this.config.providerId,
         response.status,
-        json.error?.message ?? `AI_COMPAT_TRANSCRIPTION_HTTP_${response.status}`,
+        json?.error?.message ?? `AI_COMPAT_TRANSCRIPTION_HTTP_${response.status}`,
       );
     }
+    if (!json) throw new Error('AI_COMPAT_INVALID_RESPONSE');
     if (!json.text) throw new Error('AI_COMPAT_EMPTY_TRANSCRIPT');
     return { text: json.text };
   }
