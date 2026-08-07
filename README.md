@@ -1,6 +1,23 @@
 # YRAK SUTERM Coberturas
 
-Plataforma auditable para gestionar coberturas temporales, rotaciones y concursos por nivel.
+Plataforma auditable para gestionar coberturas temporales, rotaciones y concursos por nivel para el proyecto YRAK/SUTERM.
+
+## Estado del repositorio
+
+- **Rama autoritativa:** `main`.
+- La construcción limpia fue integrada desde `build/clean-v1` mediante el PR #2.
+- `build/clean-v1` se conserva temporalmente como snapshot de esa integración.
+- `build/end-to-end-v1` es histórico experimental y no debe fusionarse.
+- `archive/main-before-clean-v1` conserva el estado de `main` anterior a la consolidación.
+- El código, migraciones, pruebas y scripts están construidos; **la ejecución de instalación, typecheck, tests, E2E, migraciones reales y despliegue queda pendiente de la fase de conexiones**.
+
+Empieza por:
+
+1. `docs/START_HERE.md`
+2. `docs/FINAL_HANDOFF.md`
+3. `docs/HANDOFF_CHECKLIST.md`
+4. `docs/TEST_MATRIX.md`
+5. `docs/DECISIONES_PENDIENTES.md`
 
 ## Reglas centrales
 
@@ -12,17 +29,32 @@ Plataforma auditable para gestionar coberturas temporales, rotaciones y concurso
 - La IA puede extraer, explicar y redactar; **no selecciona candidatos, no cambia calificaciones y no aprueba resultados**.
 - Toda operación crítica es trazable, idempotente y auditable.
 
+## Componentes
+
+- `apps/api-worker` — API y flujos operativos.
+- `apps/admin-web` — consola administrativa.
+- `apps/employee-portal` — portal del trabajador.
+- `apps/agent-worker` — agentes IA sin autoridad laboral.
+- `apps/mcp-worker` — integración read-only con ChatGPT/Claude.
+- `apps/maintenance-worker` — reconciliación y tareas programadas.
+- `packages/*` — motores deterministas y componentes compartidos.
+- `migrations/` — esquema e invariantes D1.
+- `openapi/yrak-api.yaml` — contrato de integración.
+- `scripts/` — migración, verificación, E2E, backup, restore y despliegue manual.
+
 ## Arquitectura
 
 Monorepo TypeScript para Cloudflare Workers, D1, Durable Objects, Workflows, R2, Queues y MCP. El dominio y los motores de decisión permanecen desacoplados de Cloudflare y de cualquier proveedor de IA.
 
-## Desarrollo
+## Verificación local posterior
 
 ```bash
 pnpm install
 pnpm typecheck
 pnpm test
 pnpm build
+bash scripts/migrate-local.sh
+bash scripts/verify-local.sh
 ```
 
-Las conexiones reales de Cloudflare, correo, IA y datos CFE/SUTERM se realizan después; el repositorio no contiene secretos.
+Las conexiones reales de Cloudflare, correo, IA y datos CFE/SUTERM se realizan después. El repositorio no debe contener secretos.
