@@ -67,11 +67,12 @@ node --check scripts/secret-scan.mjs
 node --check scripts/check-architecture-boundaries.mjs
 node --check scripts/seed-local.mjs
 node --check scripts/render-supabase-rag-schema.mjs
-node --check scripts/render-staging-configs.mjs
+node --check scripts/render-cloudflare-staging-config.mjs
 node --check scripts/staging-preflight.mjs
 node --check scripts/smoke-local-connections.mjs
 node --check scripts/smoke-agent-support.mjs
 node --check scripts/smoke-rag.mjs
+node --check scripts/smoke-gmail.mjs
 node --check scripts/smoke-ai-provider.mjs
 bash -n scripts/bootstrap-local.sh
 bash -n scripts/migrate-local.sh
@@ -82,6 +83,6 @@ bash -n scripts/verify-release-candidate.sh
 cat <<'EOF'
 
 PASS: static/compile/test/build release-candidate gate completed.
-This does NOT prove Cloudflare resources, D1 migrations, agents, MCP, RAG external services, email, or external providers are connected.
+This does NOT prove Cloudflare resources, D1 migrations, agents, MCP, RAG external services, Gmail send, or external providers are connected.
 NEXT: apply local migrations and run read-only connection/E2E smoke tests before staging.
 EOF
