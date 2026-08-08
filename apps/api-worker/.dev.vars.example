@@ -29,8 +29,25 @@ BOOTSTRAP_TOKEN=local-change-me
 # AI_COMPAT_TEXT_MODEL=<modelo-elegido-en-el-catalogo-actual>
 # AI_COMPAT_API_KEY=<secret>
 
-# Futuras conexiones server-side del RAG/control plane. Déjalas vacías hasta implementar/verificar adapter.
-# SUPABASE_URL=
+# RAG server-side. No usar VITE_* para ninguna de estas claves.
+# 1) Genera/revisa el schema Supabase para las dimensiones del modelo de embeddings:
+#    RAG_EMBEDDING_DIMENSIONS=<dimensiones> pnpm render:rag-schema
+# 2) Aplica el SQL generado al proyecto Supabase autorizado.
+# 3) Configura en este archivo ignorado:
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# SUPABASE_SECRET_KEY=<server-secret-key>
+# SUPABASE_RAG_RPC=yrak_match_chunks
+# RAG_EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+# RAG_EMBEDDING_MODEL=<modelo-embeddings-instalado>
+# RAG_EMBEDDING_API_KEY=
+# RAG_REQUEST_TIMEOUT_MS=30000
+#
+# El endpoint de embeddings puede ser local o cualquier endpoint HTTPS compatible con /v1/embeddings.
+# La dimensión del modelo DEBE coincidir con la usada para generar el schema pgvector.
+
+# Conectores opcionales todavía desacoplados del dominio:
 # UPSTASH_REDIS_REST_URL=
+# UPSTASH_REDIS_REST_TOKEN=
 # MODAL_ENDPOINT_URL=
+# MODAL_API_TOKEN=
 # GMAIL_TEST_ADDRESS=
