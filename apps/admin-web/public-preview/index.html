@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#07111f" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; script-src 'self'; connect-src 'none'; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" />
+  <title>YRAK Control Center · Preview</title>
+  <link rel="stylesheet" href="./preview.css" />
+</head>
+<body>
+  <div class="preview-banner" role="status">Preview visual · datos demo · sin conexión a producción</div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Navegación del preview">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 34 40" fill="none"><path d="M17 2 30 6v11c0 8.7-5.2 16.6-13 20.5C9.2 33.6 4 25.7 4 17V6L17 2Z"/><path d="m10.5 12 6.5 7.3 6.5-7.3M17 19.3v9"/></svg>
+        </div>
+        <div><strong>YRAK</strong><span>Control Center</span></div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active"><span>⌂</span>Overview</button>
+        <div class="nav-label">OPERACIÓN</div>
+        <button class="nav-item"><span>◯</span>Coberturas</button>
+        <button class="nav-item"><span>↻</span>Rotaciones 1–5 días</button>
+        <button class="nav-item"><span>▣</span>Concursos 6+ días</button>
+        <button class="nav-item"><span>♙</span>Personal</button>
+        <button class="nav-item"><span>✧</span>Requisitos</button>
+        <div class="nav-label">DOCUMENTOS & RAG</div>
+        <button class="nav-item"><span>□</span>Documentos / Intake</button>
+        <button class="nav-item"><span>◎</span>RAG Center</button>
+        <button class="nav-item"><span>⌕</span>Fuentes & Citaciones</button>
+        <div class="nav-label">IA & AGENTES</div>
+        <button class="nav-item"><span>✦</span>Agentes</button>
+        <button class="nav-item"><span>◌</span>Modelos & Proveedores</button>
+        <button class="nav-item"><span>◇</span>Evaluaciones</button>
+        <button class="nav-item"><span>◉</span>Costos & Uso</button>
+        <div class="nav-label">INFRAESTRUCTURA</div>
+        <button class="nav-item"><span>☁</span>Estado de Servicios</button>
+        <button class="nav-item"><span>⌁</span>Conexiones</button>
+        <div class="nav-label">AUDITORÍA</div>
+        <button class="nav-item"><span>⌘</span>Eventos</button>
+        <button class="nav-item"><span>⇩</span>Exportar Logs</button>
+        <div class="nav-label">REPORTES</div>
+        <button class="nav-item"><span>▧</span>Reportes</button>
+        <button class="nav-item"><span>⇩</span>Exportaciones</button>
+        <div class="nav-label">SISTEMA</div>
+        <button class="nav-item"><span>⚙</span>Configuración</button>
+        <button class="nav-item"><span>♙</span>Perfil & Seguridad</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="avatar">AD</div>
+        <div class="admin-meta"><strong>Admin YRAK</strong><span>admin@example.com</span><small><i></i> En línea</small></div>
+        <span class="chevron">⌄</span>
+      </div>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" aria-label="Abrir menú">☰</button>
+        <div class="page-heading"><h1>Overview</h1><span>Resumen general del sistema</span></div>
+        <div class="top-actions">
+          <button class="search-button">⌕ <span>Buscar</span><kbd>⌘K</kbd></button>
+          <button class="round-button" aria-label="Notificaciones">♧<b>5</b></button>
+          <button class="round-button" aria-label="Ayuda">?</button>
+          <button class="admin-select">YRAK - Administración <span>⌄</span></button>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="kpi-grid">
+          <article class="kpi-card blue"><div><span>Coberturas Activas</span><strong>24</strong><small>↗ 12% vs semana anterior</small></div><div class="kpi-icon">▣</div></article>
+          <article class="kpi-card green"><div><span>Próximas Coberturas</span><strong>18</strong><small>Siguientes 7 días</small></div><div class="kpi-icon">◷</div></article>
+          <article class="kpi-card purple"><div><span>Concursos Abiertos</span><strong>7</strong><small>6+ días</small></div><div class="kpi-icon">⚑</div></article>
+          <article class="kpi-card amber"><div><span>Alertas Activas</span><strong>5</strong><small>Requieren atención</small></div><div class="kpi-icon">△</div></article>
+          <article class="kpi-card cyan"><div><span>Personal Disponible</span><strong>156</strong><small>Activos</small></div><div class="kpi-icon">♟</div></article>
+        </section>
+
+        <section class="primary-grid">
+          <article class="panel donut-panel">
+            <h2>Coberturas por Estado</h2>
+            <div class="donut-area">
+              <div class="donut"><div class="donut-hole"><span>Total</span><strong>42</strong></div></div>
+              <div class="legend">
+                <div><i class="dot blue-dot"></i><span>Activas</span><b>24 (57.1%)</b></div>
+                <div><i class="dot yellow-dot"></i><span>Próximas</span><b>18 (42.9%)</b></div>
+                <div><i class="dot green-dot"></i><span>Completadas</span><b>23 (54.8%)</b></div>
+                <div><i class="dot red-dot"></i><span>Canceladas</span><b>3 (7.1%)</b></div>
+              </div>
+            </div>
+            <small class="panel-note">Últimos 30 días</small>
+          </article>
+
+          <article class="panel upcoming-panel">
+            <h2>Coberturas Próximas <span>(Próximos 7 días)</span></h2>
+            <div class="table-scroll"><table>
+              <thead><tr><th>Cobertura</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Personal Requerido</th></tr></thead>
+              <tbody>
+                <tr><td>Mantenimiento Subestación Norte</td><td>Rotación (1–5 días)</td><td>15 may 08:00</td><td>17 may 20:00</td><td><span class="status green-status">Programada</span></td><td>4 / 4</td></tr>
+                <tr><td>Línea de Transmisión 230kV</td><td>Concurso (6+ días)</td><td>16 may 07:30</td><td>23 may 18:00</td><td><span class="status green-status">Programada</span></td><td>6 / 6</td></tr>
+                <tr><td>Inspección Torres Zona Este</td><td>Rotación (1–5 días)</td><td>18 may 08:00</td><td>20 may 18:00</td><td><span class="status yellow-status">Pendiente</span></td><td>3 / 3</td></tr>
+                <tr><td>Mantenimiento Transformador T-51</td><td>Rotación (1–5 días)</td><td>19 may 07:00</td><td>21 may 19:00</td><td><span class="status yellow-status">Pendiente</span></td><td>2 / 4</td></tr>
+              </tbody>
+            </table></div>
+            <a href="#" class="panel-link">Ver todas las coberturas próximas →</a>
+          </article>
+        </section>
+
+        <section class="secondary-grid">
+          <article class="panel activity-panel">
+            <h2>Actividad Reciente</h2>
+            <div class="activity-list">
+              <div class="activity-item"><span class="activity-icon amber-i">▣</span><div><strong>Nueva cobertura creada: Mantenimiento Subestación Norte</strong><small>por Juan Pérez (Operador)</small></div><time>Hace 15 min</time></div>
+              <div class="activity-item"><span class="activity-icon amber-i">▣</span><div><strong>Concurso publicado: Línea de Transmisión 230kV</strong><small>por Ana López (RH)</small></div><time>Hace 45 min</time></div>
+              <div class="activity-item"><span class="activity-icon purple-i">▧</span><div><strong>Documento procesado: Manual de Seguridad V2.pdf</strong><small>por Sistema (Intake)</small></div><time>Hace 1 h</time></div>
+              <div class="activity-item"><span class="activity-icon green-i">✓</span><div><strong>Evaluación RAG completada: Requisitos eléctricos</strong><small>por Agente RAG</small></div><time>Hace 2 h</time></div>
+              <div class="activity-item"><span class="activity-icon blue-i">♙</span><div><strong>Nuevo usuario registrado: Carlos Mendoza</strong><small>por Sistema</small></div><time>Hace 3 h</time></div>
+            </div>
+            <a href="#" class="panel-link">Ver todas las actividades →</a>
+          </article>
+
+          <article class="panel agents-panel">
+            <h2>Estado de Agentes</h2>
+            <div class="agent-list">
+              <div class="agent"><span class="agent-icon">◉</span><b>Agente Intake</b><span class="healthy">Saludable</span><time>320 ms</time></div>
+              <div class="agent"><span class="agent-icon">◎</span><b>Agente Audit</b><span class="healthy">Saludable</span><time>285 ms</time></div>
+              <div class="agent"><span class="agent-icon">▣</span><b>Agente Communication</b><span class="healthy">Saludable</span><time>310 ms</time></div>
+              <div class="agent"><span class="agent-icon">♧</span><b>Agente Support</b><span class="healthy">Saludable</span><time>295 ms</time></div>
+            </div>
+            <a href="#" class="panel-link">Ver todos los agentes →</a>
+          </article>
+
+          <article class="panel usage-panel">
+            <div class="panel-head"><h2>Uso de Modelos <span>(Tokens)</span></h2><button>7 días⌄</button></div>
+            <div class="chart-wrap">
+              <div class="y-axis"><span>2M</span><span>1.5M</span><span>1M</span><span>500K</span><span>0</span></div>
+              <div class="bars">
+                <div class="bar-group"><div class="stack"><i class="s1 h66"></i><i class="s2 h24"></i><i class="s3 h14"></i></div><span>08 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h64"></i><i class="s2 h25"></i><i class="s3 h15"></i></div><span>09 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h70"></i><i class="s2 h27"></i><i class="s3 h17"></i></div><span>10 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h66"></i><i class="s2 h28"></i><i class="s3 h16"></i></div><span>11 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h69"></i><i class="s2 h27"></i><i class="s3 h16"></i></div><span>12 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h66"></i><i class="s2 h27"></i><i class="s3 h16"></i></div><span>13 may</span></div>
+                <div class="bar-group"><div class="stack"><i class="s1 h65"></i><i class="s2 h26"></i><i class="s3 h16"></i></div><span>14 may</span></div>
+              </div>
+            </div>
+            <div class="model-legend"><span><i class="blue-dot"></i>NVIDIA (Llama 3.1 70B)</span><span><i class="purple-dot"></i>Hugging Face (E5-Large)</span><span><i class="green-dot"></i>Ollama (Mistral 7B)</span></div>
+            <a href="#" class="panel-link">Ver reporte completo →</a>
+          </article>
+        </section>
+
+        <section class="panel infrastructure-panel">
+          <h2>Estado de Infraestructura</h2>
+          <div class="services">
+            <div class="service"><span class="service-logo cf">◆</span><div><b>Cloudflare</b><span class="healthy">Saludable</span><small>Workers OK</small></div></div>
+            <div class="service"><span class="service-logo sb">◒</span><div><b>Supabase</b><span class="healthy">Saludable</span><small>Postgres OK</small></div></div>
+            <div class="service"><span class="service-logo up">S</span><div><b>Upstash Redis</b><span class="healthy">Saludable</span><small>Redis OK</small></div></div>
+            <div class="service"><span class="service-logo mo">M</span><div><b>Modal</b><span class="healthy">Saludable</span><small>GPU OK</small></div></div>
+            <div class="service"><span class="service-logo nv">N</span><div><b>NVIDIA NIM</b><span class="healthy">Saludable</span><small>Conectado</small></div></div>
+            <div class="service"><span class="service-logo hf">●</span><div><b>Hugging Face</b><span class="healthy">Saludable</span><small>API OK</small></div></div>
+            <div class="service"><span class="service-logo ol">◫</span><div><b>Ollama</b><span class="healthy">Saludable</span><small>Local OK</small></div></div>
+            <div class="service"><span class="service-logo gm">✉</span><div><b>Gmail (Pruebas)</b><span class="healthy">Saludable</span><small>OAuth test OK</small></div></div>
+          </div>
+          <a href="#" class="panel-link service-link">Ver todas las conexiones →</a>
+        </section>
+      </main>
+    </section>
+  </div>
+  <script src="./preview.js"></script>
+</body>
+</html>
