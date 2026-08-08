@@ -1,6 +1,7 @@
 -- YRAK RAG sidecar schema for Supabase/Postgres.
 -- Generate the executable SQL with scripts/render-supabase-rag-schema.mjs.
 -- D1 remains canonical for labor/coverage/rotation/competition/assignment state.
+-- Server-side only: use a Supabase secret key from the secured YRAK backend, never browser code.
 
 create extension if not exists vector with schema extensions;
 
@@ -76,8 +77,8 @@ returns table (
 )
 language sql
 stable
-security definer
-set search_path = public, extensions
+security invoker
+set search_path = pg_catalog, extensions
 as $$
   select
     c.id as chunk_id,
