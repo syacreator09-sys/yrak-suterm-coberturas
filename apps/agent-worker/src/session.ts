@@ -2,6 +2,11 @@ import { DurableObject } from 'cloudflare:workers';
 import { IntakeAgent } from '@yrak/agents';
 import { provider } from './provider.js';
 import type { Env } from './env.js';
+import {
+  sanitizeAuditFactsForModel,
+  sanitizeHistoryInput,
+  sanitizeHistoryOutput,
+} from './history-policy.js';
 
 export type AgentKind = 'intake' | 'audit' | 'communication' | 'support';
 const MAX_STORED_MESSAGES = 40;
@@ -45,7 +50,7 @@ export class YrakAgentSession extends DurableObject<Env> {
       throw new Error('AGENT_ORGANIZATION_MISMATCH');
     }
 
-    this.save('user', JSON.stringify(input));
+    this.save('user', JSON.stringify(sanitizeHistoryInput(kind, input)));
     let result: unknown;
 
     if (kind === 'intake') {
@@ -62,14 +67,15 @@ export class YrakAgentSession extends DurableObject<Env> {
         WHERE organization_id=? AND entity_type=? AND entity_id=?
         ORDER BY created_at,id`)
         .bind(organizationId, entityType, entityId)
-        .all();
+        .all<Record<string, unknown>>();
       const facts = rows.results ?? [];
+      const modelFacts = sanitizeAuditFactsForModel(facts);
       const explanation = await provider(this.env, 'AUDIT_EXPLANATION').generate({
         system:
           'Eres el agente de auditoría YRAK. Explica únicamente los hechos entregados. No inventes motivos, reglas ni personas. Si la evidencia no alcanza, dilo. Eres solo lectura.',
         prompt: JSON.stringify({
           question: input.question ?? 'Explica la secuencia de decisiones.',
-          facts,
+          facts: modelFacts,
         }),
       });
       result = { facts, explanation };
@@ -77,13 +83,12 @@ export class YrakAgentSession extends DurableObject<Env> {
       const caseId = String(input.coverageCaseId ?? '');
       if (!caseId) throw new Error('COVERAGE_CASE_REQUIRED');
       const facts = await this.env.DB.prepare(`SELECT c.id,c.target_level_id,c.starts_on,
-          c.ends_on,c.effective_days,c.process_type,c.status,a.employee_id,
-          a.base_level_id,a.target_level_id assignment_target,e.name
+          c.ends_on,c.effective_days,c.process_type,c.status,
+          a.base_level_id,a.target_level_id assignment_target
         FROM coverage_cases c
         LEFT JOIN temporary_assignments a
           ON a.coverage_case_id=c.id
          AND a.status IN('PROPOSED','APPROVED','SCHEDULED','ACTIVE','COMPLETED')
-        LEFT JOIN employees e ON e.id=a.employee_id
         WHERE c.id=? AND c.organization_id=?
         ORDER BY a.chain_order LIMIT 1`)
         .bind(caseId, organizationId)
@@ -91,7 +96,7 @@ export class YrakAgentSession extends DurableObject<Env> {
       if (!facts) throw new Error('COVERAGE_NOT_FOUND');
       const draft = await provider(this.env, 'COMMUNICATION_DRAFT').generate({
         system:
-          'Redacta un borrador institucional claro y breve sobre una cobertura laboral usando sólo los datos proporcionados. No anuncies un ganador ni una asignación si el estado no lo confirma. No envíes nada; sólo redacta.',
+          'Redacta un borrador institucional claro y breve sobre una cobertura laboral usando sólo los datos proporcionados. No inventes nombres ni datos personales. No anuncies un ganador ni una asignación si el estado no lo confirma. No envíes nada; sólo redacta.',
         prompt: JSON.stringify({ purpose: input.purpose ?? 'notification', facts }),
       });
       result = { facts, draft, requiresHumanSendApproval: true };
@@ -113,7 +118,7 @@ export class YrakAgentSession extends DurableObject<Env> {
       result = { answer };
     }
 
-    this.save('assistant', JSON.stringify(result));
+    this.save('assistant', JSON.stringify(sanitizeHistoryOutput(kind, result)));
     return result;
   }
 
