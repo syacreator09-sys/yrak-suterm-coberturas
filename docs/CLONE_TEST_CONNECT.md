@@ -47,7 +47,7 @@ The gate checks:
 - environment/required files;
 - migration numbering;
 - tracked secret patterns;
-- typecheck + tests + dry-run build for Admin, API, Agents, MCP, Employee Portal and Maintenance;
+- typecheck + tests + dry-run build for Admin, API, Agents, MCP, RAG core, Employee Portal and Maintenance;
 - root Turbo typecheck/test/build;
 - operational Node script syntax.
 
@@ -85,10 +85,19 @@ The API is fixed to:
 http://127.0.0.1:8787
 ```
 
+The local API `.dev.vars.example` contains:
+
+```text
+BOOTSTRAP_ENABLED=true
+BOOTSTRAP_TOKEN=local-change-me
+```
+
+Bootstrap is fail-closed in code. Outside this synthetic local workflow it must be explicitly enabled. In staging, enable it only for the authorized initial bootstrap and remove/disable it immediately after the organization/admin exists.
+
 In a second terminal:
 
 ```bash
-node scripts/seed-local.mjs
+pnpm seed:local
 ```
 
 Defaults are local synthetic values:
@@ -211,7 +220,7 @@ Do not expose Ollama port `11434` publicly.
 
 For NVIDIA NIM or another compatible provider, set the compatible provider URL/model and key only in ignored/deployment secrets. Verify the provider's current model catalog rather than copying a model ID from old docs.
 
-The standalone fixed-prompt provider smoke is:
+First, the standalone fixed-prompt provider smoke:
 
 ```bash
 AI_COMPAT_PROVIDER_ID=... \
@@ -221,7 +230,13 @@ AI_COMPAT_API_KEY=... \
 pnpm smoke:ai
 ```
 
-This proves model connectivity only, not labor/business correctness.
+Then validate the real YRAK Agent Worker path (Durable Object + DB + router + model) with a synthetic, non-mutating support question:
+
+```bash
+AGENT_API_TOKEN=local-agent-change-me pnpm smoke:agent
+```
+
+The functional agent smoke must identify a 4-day case as **rotación** and verify that the session history persisted. It never creates a coverage or performs a labor mutation.
 
 ## 11. RAG status
 
@@ -229,7 +244,9 @@ This proves model connectivity only, not labor/business correctness.
 
 - Retriever/Reranker/Embedding/DocumentStore ports;
 - organization/group access filters passed into retrieval;
-- fail-closed validation if an adapter returns unauthorized chunks;
+- active-document requirement;
+- fail-closed validation if an adapter returns unauthorized/groupless-for-scoped/non-active chunks;
+- reranker cannot introduce a new chunk or replace canonical retrieved text;
 - bounded top-K;
 - citation metadata.
 
@@ -242,13 +259,13 @@ D1 remains canonical for coverage/rotation/competition/assignment state. Supabas
 | Integration | What is ready in code | What must be supplied/tested |
 |---|---|---|
 | Cloudflare | Workers configs, D1/R2/Queue/DO/Workflow bindings, Access JWT verifier | account auth, real resource IDs, staging Access team domain/audience, secrets, deploy smoke |
-| Supabase | RAG port/boundary + server env placeholder | project, pgvector schema/RPC/adapter, server credential, retrieval tests |
-| Modal | server env placeholder + RAG compute port concept | endpoint/function contract, auth, synthetic job smoke |
-| Upstash | server env placeholder; optional cache | REST URL/token + adapter only if measured need exists |
+| Supabase | RAG ports/security boundary; Dashboard reports adapter pending | project, pgvector schema/RPC/adapter, server credential, retrieval tests |
+| Modal | server env placeholder; Dashboard reports adapter pending | endpoint/function contract, auth, synthetic job smoke |
+| Upstash | optional cache boundary only; Dashboard reports adapter pending | REST URL/token + adapter only if measured need exists |
 | NVIDIA | generic OpenAI-compatible provider already supported | API key + current compatible model ID + synthetic smoke |
-| Hugging Face | server token placeholder / RAG model role | token + selected model/artifact workflow + adapter/job test |
+| Hugging Face | RAG model role only; Dashboard reports adapter pending | token + selected model/artifact workflow + adapter/job test |
 | Ollama | generic OpenAI-compatible provider | local install/model; no key by default |
-| Gmail test | mailbox identity placeholder | Google OAuth/Gmail adapter and consent flow; not implemented yet |
+| Gmail test | mailbox identity placeholder; Dashboard reports adapter pending | Google OAuth/Gmail adapter and consent flow; not implemented yet |
 
 Never paste real secrets into chat, source code, GitHub issues, PR descriptions or screenshots.
 
@@ -262,11 +279,12 @@ Only after local gates pass:
 4. set secrets using platform secret storage;
 5. deploy API first;
 6. configure Cloudflare Access and verify signed JWT auth;
-7. deploy Agents, MCP and Maintenance;
-8. deploy Control Center/Employee Portal behind Access;
-9. run anti-header-spoof, role matrix, group-scope A/B, intake ownership, rotation 1–5, competition 6+, audit, backup/restore and provider smoke tests;
-10. compare the real browser render against the approved Control Center mockup;
-11. only then consider production promotion.
+7. enable bootstrap only if this is the initial empty staging DB, bootstrap once, then disable it;
+8. deploy Agents, MCP and Maintenance;
+9. deploy Control Center/Employee Portal behind Access;
+10. run anti-header-spoof, role matrix, group-scope A/B, intake ownership, rotation 1–5, competition 6+, audit, backup/restore and provider/agent smoke tests;
+11. compare the real browser render against the approved Control Center mockup;
+12. only then consider production promotion.
 
 ## Definition of clone-ready vs production-ready
 
