@@ -4,6 +4,7 @@ import { provider } from './provider.js';
 import type { Env } from './env.js';
 
 export type AgentKind = 'intake' | 'audit' | 'communication' | 'support';
+const MAX_STORED_MESSAGES = 40;
 
 export class YrakAgentSession extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
@@ -22,6 +23,12 @@ export class YrakAgentSession extends DurableObject<Env> {
       role,
       content,
       Date.now(),
+    );
+    this.ctx.storage.sql.exec(
+      `DELETE FROM messages WHERE id NOT IN (
+        SELECT id FROM messages ORDER BY id DESC LIMIT ?
+      )`,
+      MAX_STORED_MESSAGES,
     );
   }
 
@@ -49,7 +56,7 @@ export class YrakAgentSession extends DurableObject<Env> {
       const entityType = String(input.entityType ?? '');
       const entityId = String(input.entityId ?? '');
       if (!entityType || !entityId) throw new Error('ENTITY_REQUIRED');
-      const rows = await this.env.DB.prepare(`SELECT actor_id,actor_role,action,
+      const rows = await this.env.DB.prepare(`SELECT actor_role,action,
           previous_value_json,new_value_json,rule_applied,reason,created_at
         FROM audit_events
         WHERE organization_id=? AND entity_type=? AND entity_id=?
@@ -71,7 +78,7 @@ export class YrakAgentSession extends DurableObject<Env> {
       if (!caseId) throw new Error('COVERAGE_CASE_REQUIRED');
       const facts = await this.env.DB.prepare(`SELECT c.id,c.target_level_id,c.starts_on,
           c.ends_on,c.effective_days,c.process_type,c.status,a.employee_id,
-          a.base_level_id,a.target_level_id assignment_target,e.name,e.email
+          a.base_level_id,a.target_level_id assignment_target,e.name
         FROM coverage_cases c
         LEFT JOIN temporary_assignments a
           ON a.coverage_case_id=c.id
