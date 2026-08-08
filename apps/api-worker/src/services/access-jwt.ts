@@ -64,7 +64,7 @@ function parseSegment<T>(segment: string): T {
 
 export function normalizeAccessTeamOrigin(teamDomain: string): string {
   const trimmed = teamDomain.trim();
-  if (!trimmed) throw new AccessJwtValidationError('ACCESS_TEAM_DOMAIN_REQUIRED');
+  if (!trimmed || trimmed.startsWith('REPLACE_')) throw new AccessJwtValidationError('ACCESS_TEAM_DOMAIN_REQUIRED');
   const raw = trimmed.includes('://') ? trimmed : `https://${trimmed}`;
   let url: URL;
   try {
@@ -72,7 +72,18 @@ export function normalizeAccessTeamOrigin(teamDomain: string): string {
   } catch {
     throw new AccessJwtValidationError('ACCESS_TEAM_DOMAIN_INVALID');
   }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (url.pathname && url.pathname !== '/')) {
+  const hostname = url.hostname.toLowerCase();
+  const validCloudflareTeamDomain = hostname.endsWith('.cloudflareaccess.com') && hostname !== 'cloudflareaccess.com';
+  if (
+    url.protocol !== 'https:' ||
+    !validCloudflareTeamDomain ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname && url.pathname !== '/') ||
+    url.port
+  ) {
     throw new AccessJwtValidationError('ACCESS_TEAM_DOMAIN_INVALID');
   }
   return url.origin;
@@ -152,8 +163,7 @@ async function fetchJwks(
   try {
     response = await fetchImpl(`${origin}/cdn-cgi/access/certs`, {
       headers: { accept: 'application/json' },
-      cf: { cacheTtl: 300, cacheEverything: true },
-    } as RequestInit);
+    });
   } catch {
     throw new AccessJwtValidationError('ACCESS_JWKS_UNAVAILABLE');
   }
