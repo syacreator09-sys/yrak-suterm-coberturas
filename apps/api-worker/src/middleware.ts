@@ -5,6 +5,12 @@ export function hasOrganizationWideRead(role: AuthUser['role']): boolean {
   return role === 'ADMIN' || role === 'HR' || role === 'AUDITOR';
 }
 
+export function isCrossSiteMutation(method: string, secFetchSite: string | undefined): boolean {
+  const normalizedMethod = method.toUpperCase();
+  if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD' || normalizedMethod === 'OPTIONS') return false;
+  return secFetchSite?.toLowerCase() === 'cross-site';
+}
+
 export async function correlation(context: Context<AppBindings>, next: Next): Promise<void> {
   context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
   await next();
@@ -17,6 +23,13 @@ export async function apiSecurityHeaders(context: Context<AppBindings>, next: Ne
   context.header('x-content-type-options', 'nosniff');
   context.header('x-frame-options', 'DENY');
   context.header('referrer-policy', 'no-referrer');
+}
+
+export async function rejectCrossSiteMutation(context: Context<AppBindings>, next: Next): Promise<Response | void> {
+  if (isCrossSiteMutation(context.req.method, context.req.header('Sec-Fetch-Site'))) {
+    return context.json({ error: 'CROSS_SITE_MUTATION_FORBIDDEN' }, 403);
+  }
+  await next();
 }
 
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
