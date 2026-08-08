@@ -7,7 +7,7 @@ const access: Record<AppSection, readonly AppRole[]> = {
   competitions: ['ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', 'OPERATOR', 'AUDITOR'],
   employees: ['ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', 'AUDITOR'],
   requirements: ['ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', 'AUDITOR'],
-  documents: ['ADMIN', 'HR', 'SUPERVISOR', 'OPERATOR', 'AUDITOR'],
+  documents: ['ADMIN', 'HR', 'SUPERVISOR', 'OPERATOR'],
   rag: ['ADMIN', 'HR', 'AUDITOR'],
   ai: ['ADMIN', 'HR', 'AUDITOR'],
   infrastructure: ['ADMIN', 'AUDITOR'],
