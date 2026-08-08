@@ -1,5 +1,6 @@
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import * as z from 'zod/v4';
+import { isAuthorizedMcpRequest, mcpConfigurationState } from './auth.js';
 
 interface Env {
   DB: D1Database;
@@ -86,25 +87,24 @@ export default {
     if (request.method === 'GET' && url.pathname === '/health') {
       return Response.json({ ok: true, service: 'yrak-suterm-mcp', mode: 'read-only' });
     }
+
+    const state = mcpConfigurationState(env);
     if (request.method === 'GET' && url.pathname === '/ready') {
-      const organizationConfigured = Boolean(env.MCP_ORGANIZATION_ID && !env.MCP_ORGANIZATION_ID.startsWith('REPLACE_'));
-      const tokenConfigured = Boolean(env.MCP_API_TOKEN);
-      if (!organizationConfigured || !tokenConfigured) {
-        return Response.json({ ok: false, service: 'yrak-suterm-mcp', database: 'unknown', organizationConfigured, tokenConfigured }, { status: 503 });
+      if (!state.organizationConfigured || !state.tokenConfigured) {
+        return Response.json({ ok: false, service: 'yrak-suterm-mcp', database: 'unknown', ...state }, { status: 503 });
       }
       try {
         await env.DB.prepare('SELECT 1 AS ok').first();
-        return Response.json({ ok: true, service: 'yrak-suterm-mcp', database: 'healthy', organizationConfigured: true, tokenConfigured: true });
+        return Response.json({ ok: true, service: 'yrak-suterm-mcp', database: 'healthy', ...state });
       } catch {
-        return Response.json({ ok: false, service: 'yrak-suterm-mcp', database: 'down', organizationConfigured: true, tokenConfigured: true }, { status: 503 });
+        return Response.json({ ok: false, service: 'yrak-suterm-mcp', database: 'down', ...state }, { status: 503 });
       }
     }
 
-    const auth = request.headers.get('authorization');
-    if (!env.MCP_API_TOKEN || auth !== `Bearer ${env.MCP_API_TOKEN}`) return new Response('Unauthorized', { status: 401 });
-    if (!env.MCP_ORGANIZATION_ID || env.MCP_ORGANIZATION_ID.startsWith('REPLACE_')) {
-      return new Response('MCP organization not configured', { status: 503 });
+    if (!isAuthorizedMcpRequest(request.headers.get('authorization'), env.MCP_API_TOKEN)) {
+      return new Response('Unauthorized', { status: 401 });
     }
+    if (!state.organizationConfigured) return new Response('MCP organization not configured', { status: 503 });
     return createMcpHandler(() => createServer(env))(request);
   },
 } satisfies ExportedHandler<Env>;
