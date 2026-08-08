@@ -2,6 +2,7 @@ import { api } from '../core/api-client.js';
 import type { PageContext } from '../core/page-context.js';
 import type { ListResponse } from '../core/types.js';
 import { renderPageError } from '../core/page-utils.js';
+import { escapeText } from '../core/security.js';
 import { confirmCriticalAction, renderField, renderJson, renderLoading, renderTable, showToast, withBusy } from '../components/ui.js';
 
 type Row = Record<string, unknown>;
@@ -63,18 +64,21 @@ async function renderCompetitionDetail(ctx: PageContext, id: string, canManage: 
   target.innerHTML = renderLoading('Cargando concurso…');
   try {
     const detail = await api.get<CompetitionDetail>(`/v1/competitions/${encodeURIComponent(id)}`);
+    const rawMinimum = Number(detail.competition.minimum_score ?? 0);
+    const minimumScore = Number.isFinite(rawMinimum) ? Math.min(100, Math.max(0, rawMinimum)) : 0;
+    const tieBreaker = String(detail.competition.tie_breaker ?? 'SENIORITY');
     target.innerHTML = `<article class="panel"><h2>Concurso</h2><dl class="key-value">
-      <dt>ID</dt><dd>${String(detail.competition.id ?? id)}</dd>
-      <dt>Estado</dt><dd>${String(detail.competition.status ?? '—')}</dd>
-      <dt>Cobertura</dt><dd>${String(detail.competition.coverage_case_id ?? '—')}</dd>
-      <dt>Nivel destino</dt><dd>${String(detail.competition.target_level_id ?? '—')}</dd>
-      <dt>Reglas confirmadas</dt><dd>${String(detail.competition.rules_confirmed ?? '—')}</dd>
-      <dt>Calificación mínima</dt><dd>${String(detail.competition.minimum_score ?? '—')}</dd>
-      <dt>Desempate</dt><dd>${String(detail.competition.tie_breaker ?? '—')}</dd>
+      <dt>ID</dt><dd>${escapeText(detail.competition.id ?? id)}</dd>
+      <dt>Estado</dt><dd>${escapeText(detail.competition.status ?? '—')}</dd>
+      <dt>Cobertura</dt><dd>${escapeText(detail.competition.coverage_case_id ?? '—')}</dd>
+      <dt>Nivel destino</dt><dd>${escapeText(detail.competition.target_level_id ?? '—')}</dd>
+      <dt>Reglas confirmadas</dt><dd>${escapeText(detail.competition.rules_confirmed ?? '—')}</dd>
+      <dt>Calificación mínima</dt><dd>${escapeText(detail.competition.minimum_score ?? '—')}</dd>
+      <dt>Desempate</dt><dd>${escapeText(tieBreaker)}</dd>
     </dl></article>
     ${canManage ? `<article class="panel"><h3>Reglas del examen</h3><form id="competition-config-form" class="form-grid">
-      ${renderField('Calificación mínima', `<input name="minimumScore" type="number" min="0" max="100" value="${Number(detail.competition.minimum_score ?? 0)}" required>`)}
-      ${renderField('Desempate', `<select name="tieBreaker"><option value="SENIORITY" ${detail.competition.tie_breaker === 'SENIORITY' ? 'selected' : ''}>Antigüedad</option><option value="EMPLOYEE_NUMBER" ${detail.competition.tie_breaker === 'EMPLOYEE_NUMBER' ? 'selected' : ''}>Número de trabajador</option></select>`)}
+      ${renderField('Calificación mínima', `<input name="minimumScore" type="number" min="0" max="100" value="${minimumScore}" required>`)}
+      ${renderField('Desempate', `<select name="tieBreaker"><option value="SENIORITY" ${tieBreaker === 'SENIORITY' ? 'selected' : ''}>Antigüedad</option><option value="EMPLOYEE_NUMBER" ${tieBreaker === 'EMPLOYEE_NUMBER' ? 'selected' : ''}>Número de trabajador</option></select>`)}
       <div class="form-actions"><button class="primary" type="submit">Confirmar reglas</button></div>
     </form></article>` : ''}
     <article class="panel"><h3>Candidatos</h3>${renderTable(detail.candidates, [
@@ -96,7 +100,7 @@ async function renderCompetitionDetail(ctx: PageContext, id: string, canManage: 
     <div class="actions"><button class="secondary" id="competition-rank" type="button">Calcular ranking</button><button class="primary" id="competition-award" type="button">Adjudicar #1</button></div>` : ''}</article>
     ${canManage ? `<article class="panel"><h3>Control dual de calificación</h3><form id="score-revision-form" class="form-grid">
       ${renderField('Revision ID', '<input name="revisionId" required>')}
-      <div class="form-actions"><button class="primary" name="action" value="approve" type="submit">Aprobar como segundo revisor</button><button class="danger" name="action" value="reject" type="button" id="revision-reject">Rechazar revisión</button></div>
+      <div class="form-actions"><button class="primary" type="submit">Aprobar como segundo revisor</button><button class="danger" type="button" id="revision-reject">Rechazar revisión</button></div>
     </form></article>` : ''}`;
 
     const refresh = () => renderCompetitionDetail(ctx, id, canManage);
@@ -164,8 +168,12 @@ async function renderCompetitionDetail(ctx: PageContext, id: string, canManage: 
       }).catch((error) => showToast(error instanceof Error ? error.message : error, 'danger'));
     });
     target.querySelector<HTMLButtonElement>('#revision-reject')?.addEventListener('click', async (event) => {
-      const revisionId = String(new FormData(revisionForm!).get('revisionId') ?? '').trim();
-      if (!revisionId) return showToast('Revision ID requerido.', 'warning');
+      if (!revisionForm) return;
+      const revisionId = String(new FormData(revisionForm).get('revisionId') ?? '').trim();
+      if (!revisionId) {
+        showToast('Revision ID requerido.', 'warning');
+        return;
+      }
       const reason = window.prompt('Motivo del rechazo');
       if (!reason?.trim()) return;
       if (!await confirmCriticalAction({ title: 'Rechazar revisión', message: 'La solicitud de cambio de calificación será rechazada y auditada.', danger: true, confirmLabel: 'Rechazar' })) return;
@@ -173,7 +181,7 @@ async function renderCompetitionDetail(ctx: PageContext, id: string, canManage: 
       await withBusy(button, async () => {
         await api.post(`/v1/competitions/score-revisions/${encodeURIComponent(revisionId)}/reject`, { reason: reason.trim() });
         showToast('Revisión rechazada.', 'success');
-        revisionForm?.reset();
+        revisionForm.reset();
       }).catch((error) => showToast(error instanceof Error ? error.message : error, 'danger'));
     });
   } catch (error) {
