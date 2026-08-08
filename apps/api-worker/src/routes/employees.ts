@@ -14,7 +14,7 @@ employeeRoutes.get('/', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', '
     ? await c.env.DB.prepare(`SELECT id,employee_number,name,email,group_id,base_level_id,seniority_date,active
         FROM employees WHERE organization_id=? ORDER BY name`)
         .bind(user.organizationId).all()
-    : await c.env.DB.prepare(`SELECT e.id,e.employee_number,e.name,e.email,e.group_id,e.base_level_id,e.seniority_date,e.active
+    : await c.env.DB.prepare(`SELECT e.id,e.employee_number,e.name,NULL AS email,e.group_id,e.base_level_id,e.seniority_date,e.active
         FROM employees e JOIN user_groups ug ON ug.group_id=e.group_id AND ug.user_id=?
         WHERE e.organization_id=? ORDER BY e.name`)
         .bind(user.id, user.organizationId).all();
