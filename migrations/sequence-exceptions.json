@@ -1,0 +1,8 @@
+{
+  "gaps": [
+    {
+      "number": 13,
+      "reason": "Historical numbering gap: no 0013 SQL migration was created. Existing 0014+ filenames are preserved to avoid rewriting migration history."
+    }
+  ]
+}
