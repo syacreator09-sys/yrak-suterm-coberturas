@@ -19,6 +19,7 @@ const patterns = [
   ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{20,}\b/g],
   ['Hugging Face token', /\bhf_[A-Za-z0-9]{20,}\b/g],
   ['NVIDIA API token', /\bnvapi-[A-Za-z0-9_-]{20,}\b/g],
+  ['Supabase secret key', /\bsb_secret_[A-Za-z0-9_-]{20,}\b/g],
   ['Google API key', /\bAIza[0-9A-Za-z_-]{30,}\b/g],
 ];
 
