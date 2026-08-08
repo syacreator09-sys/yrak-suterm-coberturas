@@ -36,8 +36,10 @@ AI_MAX_PROVIDER_ATTEMPTS=2
 # SUPABASE_URL=https://<project-ref>.supabase.co
 # UPSTASH_REDIS_REST_URL=https://<database>.upstash.io
 # MODAL_ENDPOINT_URL=https://<workspace>--<function>.modal.run
-# OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 # GMAIL_TEST_ADDRESS=yrak.pruebas@example.com
+#
+# Ollama/NVIDIA se detectan desde AI_COMPAT_PROVIDER_ID + AI_COMPAT_BASE_URL +
+# AI_COMPAT_TEXT_MODEL, que son las mismas variables que consume el adaptador real.
 #
 # Secretos relacionados, cargar por Wrangler/entorno y nunca Git:
 # HUGGINGFACE_TOKEN=<secret>
