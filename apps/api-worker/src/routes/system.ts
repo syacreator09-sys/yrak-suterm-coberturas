@@ -27,14 +27,15 @@ systemRoutes.get('/health', async (c) => {
 
 systemRoutes.get('/integrations', (c) => {
   const compatibleId = c.env.AI_COMPAT_PROVIDER_ID?.trim().toLowerCase() ?? '';
+  const compatibleReady = Boolean(c.env.AI_COMPAT_BASE_URL && c.env.AI_COMPAT_TEXT_MODEL);
   const integrations = [
     { id: 'cloudflare', configured: Boolean(c.env.DB), detail: 'D1 / Workers bindings' },
     { id: 'supabase', configured: Boolean(c.env.SUPABASE_URL), detail: 'Postgres / pgvector' },
     { id: 'upstash', configured: Boolean(c.env.UPSTASH_REDIS_REST_URL), detail: 'Redis REST' },
     { id: 'modal', configured: Boolean(c.env.MODAL_ENDPOINT_URL), detail: 'GPU endpoint' },
-    { id: 'nvidia', configured: compatibleId.includes('nvidia') && Boolean(c.env.AI_COMPAT_API_KEY), detail: 'OpenAI-compatible provider' },
+    { id: 'nvidia', configured: compatibleReady && compatibleId.includes('nvidia') && Boolean(c.env.AI_COMPAT_API_KEY), detail: 'OpenAI-compatible provider' },
     { id: 'huggingface', configured: Boolean(c.env.HUGGINGFACE_TOKEN), detail: 'Model registry token' },
-    { id: 'ollama', configured: Boolean(c.env.OLLAMA_BASE_URL) || compatibleId.includes('ollama'), detail: 'Local OpenAI-compatible endpoint' },
+    { id: 'ollama', configured: compatibleReady && compatibleId.includes('ollama'), detail: 'Local OpenAI-compatible endpoint' },
     { id: 'gmail', configured: Boolean(c.env.GMAIL_TEST_ADDRESS), detail: 'Test mailbox identity' },
   ];
   return c.json({ items: integrations });
