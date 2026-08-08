@@ -1,5 +1,14 @@
 import type { Context, Next } from 'hono';
 import type { AppBindings, AuthUser } from './env.js';
+import { AccessJwtValidationError, verifyAccessJwt } from './services/access-jwt.js';
+
+const ACCESS_SERVICE_ERROR_CODES = new Set([
+  'ACCESS_TEAM_DOMAIN_REQUIRED',
+  'ACCESS_TEAM_DOMAIN_INVALID',
+  'ACCESS_JWKS_UNAVAILABLE',
+  'ACCESS_JWKS_INVALID',
+  'ACCESS_JWK_INVALID',
+]);
 
 export function hasOrganizationWideRead(role: AuthUser['role']): boolean {
   return role === 'ADMIN' || role === 'HR' || role === 'AUDITOR';
@@ -9,6 +18,19 @@ export function isCrossSiteMutation(method: string, secFetchSite: string | undef
   const normalizedMethod = method.toUpperCase();
   if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD' || normalizedMethod === 'OPTIONS') return false;
   return secFetchSite?.toLowerCase() === 'cross-site';
+}
+
+export function isLoopbackRequestUrl(requestUrl: string): boolean {
+  try {
+    const hostname = new URL(requestUrl).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+export function accessFailureStatus(error: AccessJwtValidationError): 401 | 503 {
+  return ACCESS_SERVICE_ERROR_CODES.has(error.code) ? 503 : 401;
 }
 
 export async function correlation(context: Context<AppBindings>, next: Next): Promise<void> {
@@ -33,10 +55,32 @@ export async function rejectCrossSiteMutation(context: Context<AppBindings>, nex
 }
 
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
-  const accessEmail = context.req.header('Cf-Access-Authenticated-User-Email');
-  const developmentEmail = context.env.APP_ENV === 'development' ? context.req.header('x-yrak-user-email') : undefined;
-  const email = accessEmail ?? developmentEmail;
-  if (!email) return context.json({ error: 'UNAUTHENTICATED' }, 401);
+  let email: string | undefined;
+  const localDevelopment = context.env.APP_ENV === 'development' && isLoopbackRequestUrl(context.req.url);
+
+  if (localDevelopment) {
+    email = context.req.header('x-yrak-user-email') ?? undefined;
+    if (!email) return context.json({ error: 'UNAUTHENTICATED' }, 401);
+  } else {
+    const teamDomain = context.env.ACCESS_TEAM_DOMAIN?.trim();
+    const audience = context.env.ACCESS_AUD?.trim();
+    if (!teamDomain || !audience || audience.startsWith('REPLACE_')) {
+      return context.json({ error: 'ACCESS_NOT_CONFIGURED' }, 503);
+    }
+    const token = context.req.header('Cf-Access-Jwt-Assertion');
+    if (!token) return context.json({ error: 'UNAUTHENTICATED' }, 401);
+    try {
+      const claims = await verifyAccessJwt(token, { teamDomain, audience });
+      email = claims.email;
+    } catch (error) {
+      if (error instanceof AccessJwtValidationError) {
+        const status = accessFailureStatus(error);
+        return context.json({ error: status === 503 ? 'ACCESS_UNAVAILABLE' : 'UNAUTHENTICATED' }, status);
+      }
+      return context.json({ error: 'ACCESS_UNAVAILABLE' }, 503);
+    }
+  }
+
   const row = await context.env.DB.prepare(`SELECT id, organization_id, email, role, employee_id
     FROM users WHERE lower(email) = lower(?) AND active = 1`).bind(email).first<{ id:string; organization_id:string; email:string; role:AuthUser['role']; employee_id:string | null }>();
   if (!row) return context.json({ error: 'USER_NOT_PROVISIONED' }, 403);
