@@ -1,7 +1,9 @@
 import type { ApiFailureShape } from './types.js';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
-const DEV_EMAIL = import.meta.env.VITE_DEV_USER_EMAIL as string | undefined;
+const DEV_EMAIL = import.meta.env.DEV
+  ? import.meta.env.VITE_DEV_USER_EMAIL as string | undefined
+  : undefined;
 
 export class ApiError extends Error {
   constructor(
