@@ -1,0 +1,29 @@
+# Copiar a apps/api-worker/.dev.vars. Este archivo real está ignorado por Git.
+# Usa valores sintéticos en desarrollo. No pegues secretos reales en commits, issues o prompts.
+
+# Sólo para bootstrap local autorizado. Cambiar antes de usar.
+BOOTSTRAP_TOKEN=local-change-me
+
+# Proveedores opcionales: configurar sólo el que vayas a probar.
+# AI_PROVIDER está en wrangler.jsonc y por defecto es workers-ai.
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+# AI_COMPAT_API_KEY=
+# HUGGINGFACE_TOKEN=
+
+# Ejemplo OpenAI-compatible local (Ollama). No requiere key por defecto.
+# AI_COMPAT_PROVIDER_ID=ollama-local
+# AI_COMPAT_BASE_URL=http://127.0.0.1:11434/v1
+# AI_COMPAT_TEXT_MODEL=qwen3:8b
+
+# Ejemplo OpenAI-compatible remoto (NVIDIA NIM u otro proveedor compatible).
+# AI_COMPAT_PROVIDER_ID=nvidia-nim
+# AI_COMPAT_BASE_URL=https://integrate.api.nvidia.com/v1
+# AI_COMPAT_TEXT_MODEL=<modelo-elegido-en-el-catalogo-actual>
+# AI_COMPAT_API_KEY=<secret>
+
+# Futuras conexiones server-side del RAG/control plane. Déjalas vacías hasta implementar/verificar adaptador.
+# SUPABASE_URL=
+# UPSTASH_REDIS_REST_URL=
+# MODAL_ENDPOINT_URL=
+# GMAIL_TEST_ADDRESS=
