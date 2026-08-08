@@ -2,6 +2,7 @@ import { api } from '../core/api-client.js';
 import type { PageContext } from '../core/page-context.js';
 import type { ListResponse } from '../core/types.js';
 import { optionsHtml, renderPageError } from '../core/page-utils.js';
+import { escapeText } from '../core/security.js';
 import { renderField, renderLoading, renderTable, showToast } from '../components/ui.js';
 
 type Row = Record<string, unknown>;
@@ -34,11 +35,11 @@ export async function renderRotations(ctx: PageContext): Promise<void> {
           ? (await api.get<ListResponse<Row>>(`/v1/reference/groups/${encodeURIComponent(group.value)}/rotation-pools`)).items
           : [];
         pool.innerHTML = `<option value="">Seleccione</option>${rows.map((row) => {
-          const id = String(row.id ?? '');
-          const source = String(row.source_level_id ?? '—');
-          const target = String(row.target_level_id ?? '—');
-          return `<option value="${id.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}">${source.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')} → ${target.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</option>`;
-        }).join('')}</select>`;
+          const id = escapeText(row.id ?? '');
+          const source = escapeText(row.source_level_id ?? '—');
+          const target = escapeText(row.target_level_id ?? '—');
+          return `<option value="${id}">${source} → ${target}</option>`;
+        }).join('')}`;
         pool.disabled = false;
         summary.textContent = rows.length ? `${rows.length} pools visibles para este grupo.` : 'No hay pools activos para este grupo.';
       } catch (error) {
