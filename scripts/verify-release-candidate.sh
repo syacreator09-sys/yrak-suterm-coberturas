@@ -67,7 +67,7 @@ node --check scripts/secret-scan.mjs
 node --check scripts/check-architecture-boundaries.mjs
 node --check scripts/seed-local.mjs
 node --check scripts/render-supabase-rag-schema.mjs
-node --check scripts/render-cloudflare-staging-config.mjs
+node --check scripts/render-staging-configs.mjs
 node --check scripts/staging-preflight.mjs
 node --check scripts/smoke-local-connections.mjs
 node --check scripts/smoke-agent-support.mjs
