@@ -18,6 +18,8 @@ const draftSchema = z.object({
   confidence: z.number().min(0).max(1).nullable().optional(),
 });
 
+type CoverageSummary = { id: string; effective_days: number; process_type: string; status: string };
+
 function canAccessAnyDraft(role: string): boolean {
   return role === 'ADMIN' || role === 'HR';
 }
@@ -44,6 +46,40 @@ async function persist(c: Context<AppBindings>, input: z.infer<typeof draftSchem
     correlationId: c.get('correlationId'),
   });
   return { id, status: 'PENDING_REVIEW', extracted: input.extracted };
+}
+
+async function findCoverageForDraft(c: Context<AppBindings>, draftId: string): Promise<CoverageSummary | null> {
+  const user = c.get('user');
+  return c.env.DB.prepare(`SELECT id,effective_days,process_type,status FROM coverage_cases
+      WHERE source_intake_draft_id=? AND organization_id=?`)
+    .bind(draftId, user.organizationId)
+    .first<CoverageSummary>();
+}
+
+async function reconcileDraftConsumed(
+  c: Context<AppBindings>,
+  draftId: string,
+  coverageId: string,
+  input: { groupId: string; targetLevelId: string },
+): Promise<boolean> {
+  const user = c.get('user');
+  const result = await c.env.DB.prepare(`UPDATE intake_drafts
+      SET status='CONSUMED',reviewed_by=?,reviewed_at=datetime('now')
+      WHERE id=? AND organization_id=? AND status='PENDING_REVIEW'`)
+    .bind(user.id, draftId, user.organizationId).run();
+  if ((result.meta.changes ?? 0) !== 1) return false;
+  await new AuditWriter(c.env.DB).append({
+    organizationId: user.organizationId,
+    actorId: user.id,
+    actorRole: user.role,
+    entityType: 'INTAKE_DRAFT',
+    entityId: draftId,
+    action: 'CONSUMED',
+    previousValue: { status: 'PENDING_REVIEW' },
+    newValue: { status: 'CONSUMED', coverageCaseId: coverageId, groupId: input.groupId, targetLevelId: input.targetLevelId },
+    correlationId: c.get('correlationId'),
+  });
+  return true;
 }
 
 intakeRoutes.post('/drafts', intakeRoles, zValidator('json', draftSchema), async (c) =>
@@ -145,32 +181,34 @@ intakeRoutes.post('/drafts/:draftId/consume', intakeRoles, zValidator('json', z.
     .bind(c.req.param('draftId'), user.organizationId).first<{ id: string; status: string; created_by: string }>();
   if (!draft) return c.json({ error: 'INTAKE_DRAFT_NOT_FOUND' }, 404);
   if (!canAccessAnyDraft(user.role) && draft.created_by !== user.id) return c.json({ error: 'INTAKE_DRAFT_FORBIDDEN' }, 403);
-  if (draft.status !== 'PENDING_REVIEW') {
-    const existing = await c.env.DB.prepare(`SELECT id,effective_days,process_type,status FROM coverage_cases
-      WHERE source_intake_draft_id=? AND organization_id=?`).bind(draft.id, user.organizationId).first();
-    if (existing) return c.json({ coverage: existing, idempotent: true });
-    return c.json({ error: 'INTAKE_DRAFT_NOT_PENDING_REVIEW' }, 409);
+
+  const existing = await findCoverageForDraft(c, draft.id);
+  if (existing) {
+    if (draft.status === 'PENDING_REVIEW') await reconcileDraftConsumed(c, draft.id, existing.id, input);
+    return c.json({ coverage: existing, idempotent: true });
   }
-  const existing = await c.env.DB.prepare(`SELECT id,effective_days,process_type,status FROM coverage_cases
-    WHERE source_intake_draft_id=? AND organization_id=?`).bind(draft.id, user.organizationId).first<{ id: string }>();
-  if (existing) return c.json({ coverage: existing, idempotent: true });
-  const coverage = await createCoverageCase(c.env, user, c.get('correlationId'), { ...input, sourceIntakeDraftId: draft.id });
-  const consumed = await c.env.DB.prepare(`UPDATE intake_drafts SET status='CONSUMED',reviewed_by=?,reviewed_at=datetime('now')
-    WHERE id=? AND status='PENDING_REVIEW'`).bind(user.id, draft.id).run();
-  if ((consumed.meta.changes ?? 0) !== 1) {
-    console.error('INTAKE_DRAFT_CONSUME_RACE', draft.id);
-    return c.json({ error: 'INTAKE_DRAFT_CONSUME_CONFLICT' }, 409);
+  if (draft.status !== 'PENDING_REVIEW') return c.json({ error: 'INTAKE_DRAFT_NOT_PENDING_REVIEW' }, 409);
+
+  let coverage;
+  try {
+    coverage = await createCoverageCase(c.env, user, c.get('correlationId'), { ...input, sourceIntakeDraftId: draft.id });
+  } catch (error) {
+    // The unique index on (organization_id, source_intake_draft_id) turns a concurrent
+    // consume into an idempotent recovery path instead of a second coverage.
+    const raced = await findCoverageForDraft(c, draft.id);
+    if (!raced) throw error;
+    await reconcileDraftConsumed(c, draft.id, raced.id, input);
+    return c.json({ coverage: raced, idempotent: true });
   }
-  await new AuditWriter(c.env.DB).append({
-    organizationId: user.organizationId,
-    actorId: user.id,
-    actorRole: user.role,
-    entityType: 'INTAKE_DRAFT',
-    entityId: draft.id,
-    action: 'CONSUMED',
-    previousValue: { status: draft.status },
-    newValue: { status: 'CONSUMED', coverageCaseId: coverage.id, groupId: input.groupId, targetLevelId: input.targetLevelId },
-    correlationId: c.get('correlationId'),
-  });
+
+  const reconciled = await reconcileDraftConsumed(c, draft.id, coverage.id, input);
+  if (!reconciled) {
+    const state = await c.env.DB.prepare(`SELECT status FROM intake_drafts WHERE id=? AND organization_id=?`)
+      .bind(draft.id, user.organizationId).first<{ status: string }>();
+    if (state?.status !== 'CONSUMED') {
+      console.error('INTAKE_DRAFT_CONSUME_RECONCILIATION_FAILED', draft.id);
+      return c.json({ error: 'INTAKE_DRAFT_CONSUME_CONFLICT' }, 409);
+    }
+  }
   return c.json({ coverage }, 201);
 });
