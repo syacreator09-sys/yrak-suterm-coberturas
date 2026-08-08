@@ -51,15 +51,17 @@ describe('buildCoverageDistribution', () => {
 });
 
 describe('buildUpcomingCoverages', () => {
-  it('returns only non-terminal upcoming rows sorted by start date', () => {
+  it('returns exactly the requested calendar horizon, excludes terminal rows and sorts by start date', () => {
     const rows = buildUpcomingCoverages([
       { id: 'late', status: 'SCHEDULED', starts_on: '2026-08-11', ends_on: '2026-08-12' },
       { id: 'done', status: 'COMPLETED', starts_on: '2026-08-08', ends_on: '2026-08-09' },
       { id: 'first', status: 'ACTIVE', starts_on: '2026-08-09', ends_on: '2026-08-10' },
       { id: 'second', status: 'PENDING_APPROVAL', starts_on: '2026-08-10', ends_on: '2026-08-11' },
+      { id: 'day-seven', status: 'SCHEDULED', starts_on: '2026-08-14', ends_on: '2026-08-14' },
+      { id: 'outside', status: 'SCHEDULED', starts_on: '2026-08-15', ends_on: '2026-08-15' },
     ], '2026-08-08', 7);
 
-    expect(rows.map((row) => row.id)).toEqual(['first', 'second', 'late']);
+    expect(rows.map((row) => row.id)).toEqual(['first', 'second', 'late', 'day-seven']);
   });
 });
 
