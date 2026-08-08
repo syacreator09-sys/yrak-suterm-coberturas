@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../env.js';
-import { assertGroupAccess, requireRoles } from '../middleware.js';
+import { assertGroupAccess, hasOrganizationWideRead, requireRoles } from '../middleware.js';
 
 export const referenceRoutes = new Hono<AppBindings>();
 referenceRoutes.use('*', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', 'OPERATOR', 'AUDITOR'));
 
 referenceRoutes.get('/groups', async (c) => {
   const user = c.get('user');
-  if (user.role === 'ADMIN' || user.role === 'HR' || user.role === 'AUDITOR') {
+  if (hasOrganizationWideRead(user.role)) {
     const rows = await c.env.DB.prepare(`SELECT id,name,description,active
       FROM groups WHERE organization_id=? AND active=1 ORDER BY name`)
       .bind(user.organizationId).all();
