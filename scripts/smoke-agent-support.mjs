@@ -37,6 +37,11 @@ if (typeof answer !== 'string' || !answer.trim()) {
   console.error('FAIL: support agent returned no textual answer');
   process.exit(1);
 }
+const normalized = answer.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+if (!normalized.includes('rotacion')) {
+  console.error('FAIL: support agent did not preserve the 1–5 day ROTATION invariant');
+  process.exit(1);
+}
 
 const history = await fetch(`${baseUrl}/v1/support/${sessionId}/history`, {
   headers: { authorization: `Bearer ${token}` },
@@ -54,6 +59,7 @@ if (!Array.isArray(historyBody?.items) || historyBody.items.length < 2) {
 console.log(JSON.stringify({
   ok: true,
   agent: 'support',
+  invariant: '1-5_days_rotation',
   sessionPersisted: true,
   answerCharacters: answer.length,
 }, null, 2));
