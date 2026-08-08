@@ -56,9 +56,15 @@ describe('RagController authorization boundary', () => {
       .rejects.toBeInstanceOf(RagAuthorizationBoundaryError);
   });
 
-  it('allows organization-wide documents with no group and clamps topK', async () => {
+  it('fails closed on groupless chunks for a group-scoped caller', async () => {
+    await expect(new RagController(retriever([chunk({ groupId: null })])).retrieve({ text: 'x' }, access))
+      .rejects.toBeInstanceOf(RagAuthorizationBoundaryError);
+  });
+
+  it('allows groupless organization documents only to organization-wide callers and clamps topK', async () => {
+    const organizationWide: RagAccessContext = { ...access, organizationWide: true };
     const chunks = Array.from({ length: 25 }, (_, index) => chunk({ chunkId: `chunk-${index}`, groupId: null, score: 25 - index }));
-    const result = await new RagController(retriever(chunks)).retrieve({ text: 'x', topK: 100 }, access);
+    const result = await new RagController(retriever(chunks)).retrieve({ text: 'x', topK: 100 }, organizationWide);
     expect(result.chunks).toHaveLength(20);
   });
 });
