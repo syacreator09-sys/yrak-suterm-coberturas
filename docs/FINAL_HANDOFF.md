@@ -1,8 +1,38 @@
-# FINAL HANDOFF — sólo conexiones y ejecución
+# FINAL HANDOFF — conexiones, Control Center y ejecución
 
-La rama autoritativa es `main`. `build/clean-v1` se conserva como snapshot de la construcción limpia que fue integrada mediante el PR #2. `build/end-to-end-v1` queda únicamente como histórico experimental y no debe fusionarse. El estado previo de `main` quedó preservado en `archive/main-before-clean-v1` y el estado previo al AI Router en `archive/main-before-ai-router`.
+La rama autoritativa de producción continúa siendo `main`. `build/clean-v1` se conserva como snapshot de la construcción limpia integrada mediante PR #2. `build/end-to-end-v1` es histórico experimental y no debe fusionarse. `archive/main-before-clean-v1` y `archive/main-before-ai-router` preservan estados previos.
 
-## A. Recursos Cloudflare
+El nuevo YRAK Control Center se construye y revisa de forma aislada en `feature/control-center-v1`. **No fusionar esa rama a `main` hasta ejecutar y observar typecheck, tests, build y pruebas por rol.**
+
+## A. Control Center
+
+Documentación:
+
+- `docs/CONTROL_CENTER.md`
+- `docs/superpowers/specs/2026-08-07-yrak-control-center-design.md`
+- `docs/superpowers/plans/2026-08-07-yrak-control-center-v1.md`
+- `openapi/yrak-control-center-v1.yaml`
+
+La implementación modular vive en `apps/admin-web`. La seguridad real permanece en `apps/api-worker`.
+
+Antes de merge:
+
+```bash
+pnpm install
+pnpm --filter @yrak/admin-web typecheck
+pnpm --filter @yrak/admin-web test
+pnpm --filter @yrak/admin-web build
+pnpm --filter @yrak/api-worker typecheck
+pnpm --filter @yrak/api-worker test
+pnpm --filter @yrak/api-worker build
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Después ejecutar D1/API local con datos sintéticos y comprobar ADMIN, HR, SUPERVISOR, COMMITTEE, OPERATOR, AUDITOR y EMPLOYEE. No interpretar la presencia del código como evidencia de que estos comandos ya pasaron.
+
+## B. Recursos Cloudflare
 
 Crear una sola vez:
 
@@ -16,9 +46,23 @@ Crear una sola vez:
 8. Agent Worker + Durable Object `YrakAgentSession` si se habilitan agentes.
 9. MCP Worker si se conectará ChatGPT/Claude.
 10. Email Service/Email Routing si se usará correo.
-11. Cloudflare Access para panel/portal/API.
+11. Cloudflare Access para Control Center, portal y API.
 
-## B. Reemplazar placeholders
+## C. Servicios externos previstos
+
+Para pruebas/conexión del stack:
+
+- Supabase — Postgres + pgvector para RAG;
+- Upstash — Redis serverless cuando se requiera cache/estado efímero;
+- Modal — compute/GPU pesado;
+- NVIDIA NIM — proveedor OpenAI-compatible para pruebas/fallback;
+- Hugging Face — registro/modelos cuando se use Modal;
+- Ollama — pruebas locales;
+- Gmail de pruebas — buzón dedicado para validar flujos de correo.
+
+El Control Center muestra `configured/not configured` usando únicamente metadata server-side. No expone valores secretos. `configured` no equivale a `healthy`.
+
+## D. Reemplazar placeholders
 
 Buscar `REPLACE_WITH_` y sustituir únicamente con valores de infraestructura:
 
@@ -30,9 +74,9 @@ Buscar `REPLACE_WITH_` y sustituir únicamente con valores de infraestructura:
 
 No cambiar reglas 1–5/6+ mediante placeholders.
 
-## C. Secrets
+## E. Secrets
 
-Cargar con Wrangler, nunca Git:
+Cargar mediante Wrangler/gestor del proveedor, nunca Git ni variables `VITE_*`:
 
 - `BOOTSTRAP_TOKEN` (temporal; eliminar/desactivar después del bootstrap);
 - `MCP_API_TOKEN`;
@@ -40,9 +84,13 @@ Cargar con Wrangler, nunca Git:
 - `OPENAI_API_KEY` sólo si se usa OpenAI;
 - `ANTHROPIC_API_KEY` sólo si se usa Anthropic;
 - `AI_COMPAT_API_KEY` sólo cuando el proveedor OpenAI-compatible lo requiera;
+- `HUGGINGFACE_TOKEN` sólo si se requiere un modelo/token privado;
+- credenciales de Supabase/Upstash/Modal/Gmail únicamente cuando existan adaptadores que las necesiten;
 - credenciales S3 de R2 sólo en el entorno de backup cuando se usen.
 
-## D. Primera ejecución
+El frontend sólo admite configuración pública documentada en `apps/admin-web/.env.example`.
+
+## F. Primera ejecución
 
 ```bash
 bash scripts/migrate-local.sh
@@ -57,13 +105,13 @@ YRAK_TEST_EMAIL=admin@example.com \
 python3 scripts/e2e_api.py
 ```
 
-No interpretar este documento como evidencia de que esos comandos ya pasaron.
+Para el Control Center, mantener `VITE_API_BASE_URL` vacío en desarrollo para utilizar el proxy Vite existente hacia `127.0.0.1:8787`.
 
-## E. Smoke test de cualquier proveedor de IA
+## G. Smoke test de cualquier proveedor de IA
 
-YRAK incluye un adaptador OpenAI-compatible genérico. NVIDIA NIM, Ollama y otros proveedores compatibles son sólo configuraciones; no requieren cambiar agentes ni reglas laborales.
+YRAK incluye un adaptador OpenAI-compatible genérico. NVIDIA NIM, Ollama y otros proveedores compatibles son configuraciones, no agentes distintos.
 
-Configurar temporalmente:
+CLI independiente:
 
 ```bash
 export AI_COMPAT_PROVIDER_ID=nvidia-nim
@@ -73,7 +121,7 @@ export AI_COMPAT_API_KEY='<secret>'
 pnpm smoke:ai
 ```
 
-Para Ollama local, por ejemplo:
+Ollama local:
 
 ```bash
 export AI_COMPAT_PROVIDER_ID=ollama-local
@@ -83,13 +131,25 @@ unset AI_COMPAT_API_KEY
 pnpm smoke:ai
 ```
 
-El smoke test sólo verifica conectividad/modelo y devuelve metadata técnica (`ok`, proveedor, modelo, latencia, caracteres de respuesta). No toca D1, trabajadores, rotaciones, concursos ni asignaciones.
+El Control Center añade `POST /v1/system/ai-smoke-test`, disponible únicamente para ADMIN/HR en development/staging. El prompt está fijado en backend, usa datos sintéticos, no toca D1 laboral y producción devuelve 403.
 
-Después de confirmar un endpoint, revisar `docs/AI_PROVIDERS.md` y `docs/AI_ROUTER_TESTING_PLAN.md` para configurar routing/fallback del Agent Worker.
+## H. Scope y seguridad agregados para el Control Center
 
-## F. Carga real
+- `/v1/reference/*` entrega catálogos read-only sin conceder permisos de `/v1/config/*`.
+- listados de personal y coberturas se filtran por `user_groups` para roles scoped;
+- el detalle de cobertura sigue ejecutando `assertGroupAccess`;
+- colas de rotación read-only requieren grupo autorizado;
+- auditoría para Supervisor/Committee resuelve el grupo de la entidad antes de responder;
+- tipos de entidad de auditoría no resolubles se deniegan para roles scoped;
+- exportaciones de personal/coberturas respetan grupos autorizados;
+- auditoría CSV completa sólo ADMIN/HR/AUDITOR;
+- health/integrations no devuelve secretos;
+- IA sintética queda bloqueada en producción;
+- `EMPLOYEE` se redirige fuera de `admin-web` al portal del trabajador.
 
-Orden obligatorio recomendado:
+## I. Carga real
+
+Orden recomendado:
 
 1. grupos/niveles/transiciones;
 2. personal y nivel base;
@@ -101,35 +161,36 @@ Orden obligatorio recomendado:
 8. feriados/turnos;
 9. políticas de grupo.
 
-## G. Producción
+## J. Producción
 
 Antes de producción:
 
-- ejecutar `pnpm install`, `pnpm typecheck`, `pnpm test` y `pnpm build` sobre el monorepo completo;
+- ejecutar todos los comandos de verificación del monorepo;
 - ejecutar `docs/TEST_MATRIX.md`;
-- probar aislamiento de roles/grupos;
+- probar aislamiento de roles/grupos desde API y navegador;
 - probar 5 días y 6 días;
 - probar concurso y segunda aprobación de nota;
-- probar rechazo de rotación;
+- probar rechazo/cancelación de rotación;
 - probar dos solicitudes simultáneas;
 - probar regreso a nivel base;
 - probar documentos/audio/correo;
-- probar cada proveedor de IA real con datos sintéticos antes de usar datos laborales;
-- probar MCP/agentes como sólo lectura/no decisión;
+- probar cada proveedor de IA real con datos sintéticos antes de datos laborales;
+- probar RAG con ACL y citas antes de habilitar su consulta en el Dashboard;
+- probar MCP/agentes como lectura/no decisión;
 - ejecutar backup D1 + R2;
 - restaurar ambos en staging;
 - comparar hashes/evidencia;
 - revisar políticas oficiales pendientes en `DECISIONES_PENDIENTES.md`.
 
-## H. Reglas que no deben cambiar al conectar infraestructura
+## K. Reglas que no deben cambiar al conectar infraestructura
 
 - 1–5 días efectivos = rotación.
 - 6+ días efectivos = requisitos + concurso.
 - nivel base inmutable durante cobertura temporal.
 - sólo transición explícitamente autorizada puede cubrir.
 - IA no decide.
-- cambiar de proveedor/modelo de IA no cambia ninguna decisión laboral.
+- cambiar de proveedor/modelo de IA no cambia decisiones laborales.
 - calificación corregida requiere segundo usuario.
 - auditoría no se borra/modifica desde aplicación.
 
-Las conexiones externas deben adaptarse a estas reglas; las reglas no deben alterarse para acomodar una integración.
+Las conexiones externas deben adaptarse a estas reglas; las reglas no se alteran para acomodar una integración.
