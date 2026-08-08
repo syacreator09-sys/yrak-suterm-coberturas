@@ -65,6 +65,10 @@ const requiredPaths = [
   'scripts/check-migrations.mjs',
   'scripts/secret-scan.mjs',
   'scripts/render-supabase-rag-schema.mjs',
+  'scripts/render-cloudflare-staging-config.mjs',
+  'scripts/staging-preflight.mjs',
+  'scripts/smoke-rag.mjs',
+  'scripts/smoke-gmail.mjs',
   'scripts/verify-release-candidate.sh',
   'scripts/migrate-local.sh',
 ];
@@ -88,10 +92,11 @@ if (git.status === 0 && git.stdout.trim() === 'true') {
     /(^|\/)\.dev\.vars(?:\.|$)/.test(path) ||
     (/(^|\/)\.env(?:\.|$)/.test(path) && !path.endsWith('.env.example')) ||
     path.endsWith('settings.local.json') ||
+    path.endsWith('.staging.local.jsonc') ||
     path === 'supabase/rag-schema.generated.sql'
   );
   if (forbiddenTracked.length) fail(`secret-bearing/generated local files tracked: ${forbiddenTracked.join(', ')}`);
-  else pass('no tracked local secret/generated RAG files');
+  else pass('no tracked local secret/generated deploy/RAG files');
 } else {
   warn('git metadata unavailable; tracked-secret filename check skipped');
 }
@@ -112,7 +117,8 @@ const serverSecretNames = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_SECRET_KEY',
   'MODAL_API_TOKEN',
-  'GMAIL_CLIENT_SECRET',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'GOOGLE_OAUTH_REFRESH_TOKEN',
   'BOOTSTRAP_TOKEN',
   'MCP_API_TOKEN',
   'AGENT_API_TOKEN',
