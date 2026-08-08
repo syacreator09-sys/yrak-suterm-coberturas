@@ -73,7 +73,8 @@ export function buildUpcomingCoverages(
   horizonDays = 7,
 ): CoverageSummaryRow[] {
   const start = new Date(`${todayIso}T00:00:00Z`).getTime();
-  const end = start + horizonDays * 86_400_000;
+  const safeHorizonDays = Math.max(1, Math.trunc(horizonDays));
+  const end = start + (safeHorizonDays - 1) * 86_400_000;
   return coverages
     .filter((row) => {
       const status = String(row.status ?? '').toUpperCase();
