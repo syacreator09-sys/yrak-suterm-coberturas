@@ -86,7 +86,7 @@ export async function renderCoverages(ctx: PageContext): Promise<void> {
             endDate: String(fd.get('endDate') ?? ''),
           });
           const target = ctx.root.querySelector<HTMLElement>('#coverage-preview')!;
-          target.innerHTML = `<div class="alert alert-info" style="margin-top:12px">Preview calculado por el motor. Crear el expediente no cambia estas reglas.</div>${renderJson(data)}`;
+          target.innerHTML = `<div class="alert alert-info mt-12">Preview calculado por el motor. Crear el expediente no cambia estas reglas.</div>${renderJson(data)}`;
         }).catch((error) => showToast(error instanceof Error ? error.message : error, 'danger'));
       });
 
@@ -148,7 +148,7 @@ async function renderCoverageDetail(
       <div class="actions">
         ${canSelectRotation ? '<button class="secondary" id="coverage-select" type="button">Seleccionar rotación</button>' : ''}
         ${canApproveRotation ? '<button class="primary" id="coverage-approve" type="button">Aprobar rotación</button>' : ''}
-        ${canCloseOrCancel ? '<button class="secondary" id="coverage-complete" type="button">Cerrar / regresar a base</button><label class="field" style="margin:0"><span class="field-label">Cancelación iniciada consume turno</span><input id="cancel-consumes-turn" type="checkbox" style="width:auto"></label><button class="danger" id="coverage-cancel" type="button">Cancelar</button>' : ''}
+        ${canCloseOrCancel ? '<button class="secondary" id="coverage-complete" type="button">Cerrar / regresar a base</button><label class="field m-0"><span class="field-label">Cancelación iniciada consume turno</span><input id="cancel-consumes-turn" class="w-auto" type="checkbox"></label><button class="danger" id="coverage-cancel" type="button">Cancelar</button>' : ''}
       </div></div>
       <div class="panel"><h3>Asignaciones</h3>${renderTable(detail.assignments, [
         { key: 'id', label: 'ID' }, { key: 'employee_id', label: 'Trabajador' }, { key: 'base_level_id', label: 'Base' }, { key: 'target_level_id', label: 'Destino' }, { key: 'status', label: 'Estado' },
