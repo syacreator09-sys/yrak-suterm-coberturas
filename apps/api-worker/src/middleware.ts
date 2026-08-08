@@ -1,6 +1,10 @@
 import type { Context, Next } from 'hono';
 import type { AppBindings, AuthUser } from './env.js';
 
+export function hasOrganizationWideRead(role: AuthUser['role']): boolean {
+  return role === 'ADMIN' || role === 'HR' || role === 'AUDITOR';
+}
+
 export async function correlation(context: Context<AppBindings>, next: Next): Promise<void> {
   context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
   await next();
@@ -30,7 +34,7 @@ export async function assertGroupAccess(context: Context<AppBindings>, groupId: 
   const user = context.get('user');
   const group = await context.env.DB.prepare('SELECT id FROM groups WHERE id = ? AND organization_id = ? AND active = 1').bind(groupId, user.organizationId).first();
   if (!group) throw new Error('GROUP_NOT_FOUND');
-  if (user.role === 'ADMIN' || user.role === 'HR' || user.role === 'AUDITOR') return;
+  if (hasOrganizationWideRead(user.role)) return;
   const access = await context.env.DB.prepare('SELECT 1 AS ok FROM user_groups WHERE user_id = ? AND group_id = ?').bind(user.id, groupId).first();
   if (!access) throw new Error('GROUP_FORBIDDEN');
 }
