@@ -17,7 +17,7 @@ export async function renderSettings(ctx: PageContext): Promise<void> {
     ]);
     const provisionableRoles = ctx.session.user.role === 'ADMIN'
       ? ['ADMIN','HR','SUPERVISOR','COMMITTEE','OPERATOR','EMPLOYEE','AUDITOR']
-      : ['HR','SUPERVISOR','COMMITTEE','OPERATOR','EMPLOYEE'];
+      : ['SUPERVISOR','COMMITTEE','OPERATOR','EMPLOYEE'];
 
     ctx.root.innerHTML = `<div class="page-stack">
       ${renderAlert('Los cambios de configuración afectan qué transiciones, requisitos y usuarios puede usar el sistema. La API valida scope, integridad y escalación de privilegios; el Dashboard no puede omitir esas validaciones.', 'warning')}
