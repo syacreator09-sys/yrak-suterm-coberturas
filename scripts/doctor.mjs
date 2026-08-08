@@ -47,6 +47,7 @@ const requiredPaths = [
   'apps/maintenance-worker/package.json',
   'apps/employee-portal/package.json',
   'packages/rag/package.json',
+  'supabase/rag-schema.template.sql',
   'apps/api-worker/wrangler.jsonc',
   'apps/agent-worker/wrangler.jsonc',
   'apps/mcp-worker/wrangler.jsonc',
@@ -63,6 +64,7 @@ const requiredPaths = [
   'scripts/check-architecture-boundaries.mjs',
   'scripts/check-migrations.mjs',
   'scripts/secret-scan.mjs',
+  'scripts/render-supabase-rag-schema.mjs',
   'scripts/verify-release-candidate.sh',
   'scripts/migrate-local.sh',
 ];
@@ -85,10 +87,11 @@ if (git.status === 0 && git.stdout.trim() === 'true') {
   const forbiddenTracked = tracked.filter((path) =>
     /(^|\/)\.dev\.vars(?:\.|$)/.test(path) ||
     (/(^|\/)\.env(?:\.|$)/.test(path) && !path.endsWith('.env.example')) ||
-    path.endsWith('settings.local.json')
+    path.endsWith('settings.local.json') ||
+    path === 'supabase/rag-schema.generated.sql'
   );
-  if (forbiddenTracked.length) fail(`secret-bearing local files tracked: ${forbiddenTracked.join(', ')}`);
-  else pass('no tracked .dev.vars/.env local secret files');
+  if (forbiddenTracked.length) fail(`secret-bearing/generated local files tracked: ${forbiddenTracked.join(', ')}`);
+  else pass('no tracked local secret/generated RAG files');
 } else {
   warn('git metadata unavailable; tracked-secret filename check skipped');
 }
@@ -98,11 +101,23 @@ const browserFiles = [
   'apps/admin-web/public',
   'apps/admin-web/index.html',
 ];
-const grep = command('grep', [
-  '-RInE',
-  'OPENAI_API_KEY|ANTHROPIC_API_KEY|AI_COMPAT_API_KEY|HUGGINGFACE_TOKEN|UPSTASH_REDIS_REST_TOKEN|SUPABASE_SERVICE_ROLE|GMAIL_CLIENT_SECRET|BOOTSTRAP_TOKEN|MCP_API_TOKEN|AGENT_API_TOKEN',
-  ...browserFiles,
-]);
+const serverSecretNames = [
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'AI_COMPAT_API_KEY',
+  'RAG_EMBEDDING_API_KEY',
+  'HUGGINGFACE_TOKEN',
+  'UPSTASH_REDIS_REST_TOKEN',
+  'SUPABASE_SERVICE_ROLE',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_SECRET_KEY',
+  'MODAL_API_TOKEN',
+  'GMAIL_CLIENT_SECRET',
+  'BOOTSTRAP_TOKEN',
+  'MCP_API_TOKEN',
+  'AGENT_API_TOKEN',
+].join('|');
+const grep = command('grep', ['-RInE', serverSecretNames, ...browserFiles]);
 if (grep.status === 1) pass('browser sources do not reference server secret names');
 else if (grep.status === 0) fail(`browser/server-secret boundary violation:\n${grep.stdout.trim()}`);
 else warn('grep unavailable; browser secret-name scan skipped');
