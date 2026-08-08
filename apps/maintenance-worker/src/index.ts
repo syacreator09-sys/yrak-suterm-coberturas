@@ -3,6 +3,16 @@ interface Env {
   NOTIFICATIONS_QUEUE: Queue<{ notificationId: string }>;
 }
 
+async function recoverStaleNotificationClaims(env: Env) {
+  const result = await env.DB.prepare(`UPDATE notifications
+       SET status='FAILED',last_error='PROCESSING_TIMEOUT',processing_started_at=NULL
+     WHERE status='PROCESSING'
+       AND processing_started_at IS NOT NULL
+       AND processing_started_at <= datetime('now','-10 minutes')`)
+    .run();
+  return result.meta.changes ?? 0;
+}
+
 async function recoverNotifications(env: Env) {
   const rows = await env.DB.prepare(`SELECT id
       FROM notifications
@@ -49,19 +59,33 @@ async function releaseOrphanedD1Reservations(env: Env) {
 }
 
 async function maintenance(env: Env) {
+  const recoveredNotificationClaims = await recoverStaleNotificationClaims(env);
   const [expiredRequirements, releasedReservations, requeuedNotifications] = await Promise.all([
     expireRequirements(env),
     releaseOrphanedD1Reservations(env),
     recoverNotifications(env),
   ]);
-  return { expiredRequirements, releasedReservations, requeuedNotifications };
+  return {
+    recoveredNotificationClaims,
+    expiredRequirements,
+    releasedReservations,
+    requeuedNotifications,
+  };
 }
 
 const handler: ExportedHandler<Env> = {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/health') {
+    if (request.method === 'GET' && url.pathname === '/health') {
       return Response.json({ ok: true, service: 'yrak-suterm-maintenance' });
+    }
+    if (request.method === 'GET' && url.pathname === '/ready') {
+      try {
+        await env.DB.prepare('SELECT 1 AS ok').first();
+        return Response.json({ ok: true, service: 'yrak-suterm-maintenance', database: 'healthy' });
+      } catch {
+        return Response.json({ ok: false, service: 'yrak-suterm-maintenance', database: 'down' }, { status: 503 });
+      }
     }
     return new Response('Not Found', { status: 404 });
   },
