@@ -8,6 +8,13 @@ export class RagAuthorizationBoundaryError extends Error {
   }
 }
 
+export class RagRerankerBoundaryError extends Error {
+  constructor(message = 'RAG_RERANKER_BOUNDARY_VIOLATION') {
+    super(message);
+    this.name = 'RagRerankerBoundaryError';
+  }
+}
+
 function filterFor(access: RagAccessContext): RagRetrievalFilter {
   return {
     organizationId: access.organizationId,
@@ -19,6 +26,7 @@ function filterFor(access: RagAccessContext): RagRetrievalFilter {
 
 export function assertChunkAuthorized(chunk: RetrievedChunk, access: RagAccessContext): void {
   if (chunk.organizationId !== access.organizationId) throw new RagAuthorizationBoundaryError();
+  if (chunk.status.toUpperCase() !== 'ACTIVE') throw new RagAuthorizationBoundaryError();
   if (!access.organizationWide) {
     if (!chunk.groupId || !access.allowedGroupIds.includes(chunk.groupId)) throw new RagAuthorizationBoundaryError();
   }
@@ -35,6 +43,29 @@ function citationFor(chunk: RetrievedChunk): RagCitation {
   };
 }
 
+function safeTopK(value: number | undefined): number {
+  if (value === undefined) return 8;
+  if (!Number.isFinite(value)) return 8;
+  return Math.max(1, Math.min(20, Math.trunc(value)));
+}
+
+function canonicalizeReranked(
+  candidates: readonly RetrievedChunk[],
+  reranked: readonly RetrievedChunk[],
+): RetrievedChunk[] {
+  const byId = new Map(candidates.map((chunk) => [chunk.chunkId, chunk]));
+  const seen = new Set<string>();
+  const output: RetrievedChunk[] = [];
+  for (const item of reranked) {
+    const canonical = byId.get(item.chunkId);
+    if (!canonical) throw new RagRerankerBoundaryError();
+    if (seen.has(item.chunkId)) continue;
+    seen.add(item.chunkId);
+    output.push(canonical);
+  }
+  return output;
+}
+
 export class RagController {
   constructor(
     private readonly retriever: RagRetriever,
@@ -44,15 +75,14 @@ export class RagController {
   async retrieve(query: RagQuery, access: RagAccessContext): Promise<RagRetrievalResult> {
     const text = query.text.trim();
     if (!text) throw new Error('RAG_QUERY_REQUIRED');
-    const requestedTopK = query.topK ?? 8;
-    const topK = Math.max(1, Math.min(20, requestedTopK));
+    const topK = safeTopK(query.topK);
     const candidates = await this.retriever.retrieve({ text, topK }, filterFor(access));
 
     for (const chunk of candidates) assertChunkAuthorized(chunk, access);
 
     const ranked = this.reranker
-      ? await this.reranker.rerank(text, candidates, topK)
-      : [...candidates].sort((a, b) => b.score - a.score).slice(0, topK);
+      ? canonicalizeReranked(candidates, await this.reranker.rerank(text, candidates, topK))
+      : [...candidates].sort((a, b) => b.score - a.score);
 
     for (const chunk of ranked) assertChunkAuthorized(chunk, access);
     const chunks = ranked.slice(0, topK);
