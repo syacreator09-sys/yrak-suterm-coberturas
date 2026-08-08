@@ -55,14 +55,24 @@ employeeRoutes.post('/:employeeId/unavailability', requireRoles('ADMIN', 'HR', '
   endDate: z.string(),
   reason: z.string().nullable().optional(),
 })), async (c) => {
-  const user = c.get('user'), input = c.req.valid('json');
+  const user = c.get('user'), input = c.req.valid('json'), employeeId = c.req.param('employeeId');
   const employee = await c.env.DB.prepare(`SELECT group_id FROM employees WHERE id=? AND organization_id=?`)
-    .bind(c.req.param('employeeId'), user.organizationId).first<{ group_id: string }>();
+    .bind(employeeId, user.organizationId).first<{ group_id: string }>();
   if (!employee) return c.json({ error: 'EMPLOYEE_NOT_FOUND' }, 404);
   await assertGroupAccess(c, employee.group_id);
   const id = crypto.randomUUID();
   await c.env.DB.prepare(`INSERT INTO employee_unavailability(id,employee_id,kind,starts_on,ends_on,reason) VALUES(?,?,?,?,?,?)`)
-    .bind(id, c.req.param('employeeId'), input.kind, input.startDate, input.endDate, input.reason ?? null).run();
+    .bind(id, employeeId, input.kind, input.startDate, input.endDate, input.reason ?? null).run();
+  await new AuditWriter(c.env.DB).append({
+    organizationId: user.organizationId,
+    actorId: user.id,
+    actorRole: user.role,
+    entityType: 'EMPLOYEE_UNAVAILABILITY',
+    entityId: id,
+    action: 'CREATED',
+    newValue: { employeeId, groupId: employee.group_id, ...input },
+    correlationId: c.get('correlationId'),
+  });
   return c.json({ id, ...input }, 201);
 });
 
@@ -74,17 +84,31 @@ employeeRoutes.put('/:employeeId/requirements/:requirementId', requireRoles('ADM
   evidenceAttachmentId: z.string().nullable().optional(),
 })), async (c) => {
   const input = c.req.valid('json'), user = c.get('user');
-  const employee = await c.env.DB.prepare(`SELECT id FROM employees WHERE id=? AND organization_id=?`)
-    .bind(c.req.param('employeeId'), user.organizationId).first();
+  const employeeId = c.req.param('employeeId'), requirementId = c.req.param('requirementId');
+  const employee = await c.env.DB.prepare(`SELECT id,group_id FROM employees WHERE id=? AND organization_id=?`)
+    .bind(employeeId, user.organizationId).first<{ id: string; group_id: string }>();
   const requirement = await c.env.DB.prepare(`SELECT id FROM requirements WHERE id=? AND organization_id=?`)
-    .bind(c.req.param('requirementId'), user.organizationId).first();
+    .bind(requirementId, user.organizationId).first();
   if (!employee || !requirement) return c.json({ error: 'RESOURCE_SCOPE_MISMATCH' }, 404);
+  const previous = await c.env.DB.prepare(`SELECT status,completed_at,valid_until,score,evidence_attachment_id FROM employee_requirements WHERE employee_id=? AND requirement_id=?`)
+    .bind(employeeId, requirementId).first();
   await c.env.DB.prepare(`INSERT INTO employee_requirements(id,employee_id,requirement_id,status,completed_at,valid_until,score,evidence_attachment_id,verified_by,verified_at)
       VALUES(?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT(employee_id,requirement_id) DO UPDATE SET
         status=excluded.status,completed_at=excluded.completed_at,valid_until=excluded.valid_until,score=excluded.score,
         evidence_attachment_id=excluded.evidence_attachment_id,verified_by=excluded.verified_by,verified_at=datetime('now'),
         version=employee_requirements.version+1,updated_at=datetime('now')`)
-    .bind(crypto.randomUUID(), c.req.param('employeeId'), c.req.param('requirementId'), input.status, input.completedAt ?? null, input.validUntil ?? null, input.score ?? null, input.evidenceAttachmentId ?? null, user.id).run();
+    .bind(crypto.randomUUID(), employeeId, requirementId, input.status, input.completedAt ?? null, input.validUntil ?? null, input.score ?? null, input.evidenceAttachmentId ?? null, user.id).run();
+  await new AuditWriter(c.env.DB).append({
+    organizationId: user.organizationId,
+    actorId: user.id,
+    actorRole: user.role,
+    entityType: 'EMPLOYEE_REQUIREMENT',
+    entityId: `${employeeId}:${requirementId}`,
+    action: previous ? 'UPDATED' : 'CREATED',
+    previousValue: previous ?? undefined,
+    newValue: { employeeId, requirementId, groupId: employee.group_id, ...input },
+    correlationId: c.get('correlationId'),
+  });
   return c.json({ updated: true });
 });
