@@ -24,6 +24,8 @@ const app = new Hono<AppBindings>();
 app.use('*', correlation);
 app.use('/v1/*', apiSecurityHeaders);
 app.use('/v1/*', rejectCrossSiteMutation);
+app.use('/bootstrap', apiSecurityHeaders);
+app.use('/bootstrap', rejectCrossSiteMutation);
 
 app.get('/health', (c) => c.json({ ok: true, service: 'yrak-suterm-coberturas-api' }));
 app.get('/ready', async (c) => {
