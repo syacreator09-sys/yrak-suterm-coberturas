@@ -25,7 +25,7 @@ export function normalizeProviderBaseUrl(value: string): string {
   } catch {
     throw new Error('RAG_PROVIDER_BASE_URL_INVALID');
   }
-  const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname.toLowerCase());
+  const loopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname.toLowerCase());
   if ((url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) || url.username || url.password || url.search || url.hash) {
     throw new Error('RAG_PROVIDER_BASE_URL_INVALID');
   }
@@ -40,10 +40,12 @@ function parseEmbeddingResponse(body: unknown, expectedCount: number): number[][
   const indexed = data.map((entry) => {
     if (!entry || typeof entry !== 'object') throw new Error('RAG_EMBEDDING_RESPONSE_INVALID');
     const record = entry as { index?: unknown; embedding?: unknown };
-    if (!Number.isInteger(record.index) || !Array.isArray(record.embedding)) throw new Error('RAG_EMBEDDING_RESPONSE_INVALID');
+    if (typeof record.index !== 'number' || !Number.isInteger(record.index) || !Array.isArray(record.embedding)) {
+      throw new Error('RAG_EMBEDDING_RESPONSE_INVALID');
+    }
     const vector = record.embedding.map((value) => Number(value));
     if (!vector.length || vector.some((value) => !Number.isFinite(value))) throw new Error('RAG_EMBEDDING_RESPONSE_INVALID');
-    return { index: Number(record.index), vector };
+    return { index: record.index, vector };
   }).sort((a, b) => a.index - b.index);
 
   if (indexed.length !== expectedCount || indexed.some((item, index) => item.index !== index)) {
