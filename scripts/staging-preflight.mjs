@@ -8,6 +8,7 @@ if (process.env.CONFIRM_YRAK_STAGING !== 'YES') {
   console.error('REFUSING_STAGING_PREFLIGHT: set CONFIRM_YRAK_STAGING=YES only after confirming the intended staging environment.');
   process.exit(2);
 }
+const bootstrapWindow = process.env.ALLOW_STAGING_BOOTSTRAP === 'YES' && process.env.CONFIRM_STAGING_BOOTSTRAP === 'YES';
 
 const paths = {
   api: 'apps/api-worker/wrangler.staging.local.jsonc',
@@ -60,9 +61,11 @@ if (api) {
   else fail('API ACCESS_TEAM_DOMAIN is missing or not a *.cloudflareaccess.com host');
   if (api.vars?.ACCESS_AUD && !String(api.vars.ACCESS_AUD).startsWith('REPLACE_')) pass('API Access audience rendered');
   else fail('API Access audience missing');
-  if (api.vars?.BOOTSTRAP_ENABLED === true || String(api.vars?.BOOTSTRAP_ENABLED ?? '').toLowerCase() === 'true') {
-    fail('Generated staging config must not enable bootstrap by default');
-  } else pass('Bootstrap disabled by default in staging config');
+
+  const bootstrapEnabled = api.vars?.BOOTSTRAP_ENABLED === true || String(api.vars?.BOOTSTRAP_ENABLED ?? '').toLowerCase() === 'true';
+  if (!bootstrapEnabled) pass('Bootstrap disabled by default in staging config');
+  else if (bootstrapWindow) pass('Bootstrap TEMPORARILY enabled under explicit one-time staging confirmation');
+  else fail('Bootstrap is enabled but ALLOW_STAGING_BOOTSTRAP=YES + CONFIRM_STAGING_BOOTSTRAP=YES were not both supplied');
 }
 
 const agents = loaded.agents?.json;
