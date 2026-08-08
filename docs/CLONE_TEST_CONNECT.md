@@ -45,11 +45,12 @@ pnpm verify:rc
 The gate checks:
 
 - environment/required files;
-- migration numbering;
+- migration numbering/exceptions;
 - tracked secret patterns;
+- architecture/security boundaries;
 - typecheck + tests + dry-run build for Admin, API, Agents, MCP, RAG core, Employee Portal and Maintenance;
 - root Turbo typecheck/test/build;
-- operational Node script syntax.
+- operational Node/Bash script syntax.
 
 If any step fails, fix that failure and rerun. Do not skip it to continue to staging.
 
@@ -69,7 +70,7 @@ bash scripts/migrate-local.sh
 
 Then keep the same `pnpm dev:*` commands below; each Worker already includes the same `--persist-to` path.
 
-If `scripts/check-migrations.mjs` reports a numeric gap, stop and inspect migration history. Never renumber an already-applied migration just to make the checker green.
+The historical missing number `0013` is documented in `migrations/sequence-exceptions.json`; do not invent or renumber an applied migration. Any other missing/duplicate/stale exception must fail the migration audit.
 
 ## 5. Start API and create synthetic local organization
 
@@ -175,9 +176,9 @@ Project skills live under `.claude/skills/`:
 
 Project subagents live under `.claude/agents/`:
 
-- `yrak-auditor` — read-only audit;
+- `yrak-auditor` — read-only audit, no shell/edit tools;
 - `yrak-test-runner` — evidence-only test execution;
-- `yrak-code-reviewer` — read-only merge review;
+- `yrak-code-reviewer` — read-only merge review, no shell/edit tools;
 - `yrak-cloudflare-integrator` — staging integrator with normal permission prompts.
 
 Use `inherit` model selection so the project does not depend on a hard-coded Claude model ID.
@@ -203,11 +204,11 @@ export YRAK_MCP_TOKEN='<secret-from-your-secret-manager>'
 claude
 ```
 
-Then use `/mcp` or `claude mcp get yrak-readonly` to inspect the connection. The MCP server remains read-only by contract.
+Then use `/mcp` or `claude mcp get yrak-readonly` to inspect the connection. The MCP server remains read-only by contract and only appends MCP access logs.
 
-## 10. Agent model test
+## 10. Agent/model test
 
-Cloudflare Workers AI does not have a purely local simulator. For a no-cloud test, use a local OpenAI-compatible provider such as Ollama in the ignored Agent `.dev.vars`:
+For a no-cloud model test, use a local OpenAI-compatible provider such as Ollama in the ignored Agent `.dev.vars`:
 
 ```text
 AI_PROFILE=local
@@ -220,7 +221,7 @@ Do not expose Ollama port `11434` publicly.
 
 For NVIDIA NIM or another compatible provider, set the compatible provider URL/model and key only in ignored/deployment secrets. Verify the provider's current model catalog rather than copying a model ID from old docs.
 
-First, the standalone fixed-prompt provider smoke:
+Standalone fixed-prompt provider smoke:
 
 ```bash
 AI_COMPAT_PROVIDER_ID=... \
@@ -238,34 +239,78 @@ AGENT_API_TOKEN=local-agent-change-me pnpm smoke:agent
 
 The functional agent smoke must identify a 4-day case as **rotación** and verify that the session history persisted. It never creates a coverage or performs a labor mutation.
 
-## 11. RAG status
+## 11. RAG — implemented runtime, pending real connection evidence
 
-`packages/rag` contains the provider-agnostic security core:
+The repository now contains:
 
-- Retriever/Reranker/Embedding/DocumentStore ports;
-- organization/group access filters passed into retrieval;
+- provider-agnostic Retriever/Reranker/Embedding/DocumentStore ports;
+- organization/group access filters before retrieval;
 - active-document requirement;
-- fail-closed validation if an adapter returns unauthorized/groupless-for-scoped/non-active chunks;
-- reranker cannot introduce a new chunk or replace canonical retrieved text;
-- bounded top-K;
-- citation metadata.
+- fail-closed revalidation of returned chunks;
+- reranker trust boundary: it cannot introduce a chunk or replace canonical retrieved text;
+- bounded top-K and structured citations;
+- `OpenAICompatibleEmbeddingProvider` for HTTPS/loopback `/embeddings` endpoints;
+- `SupabasePgvectorRetriever` using a server-side Supabase secret key;
+- `supabase/rag-schema.template.sql` with pgvector/HNSW, RLS/revokes and scoped `yrak_match_chunks` RPC;
+- `scripts/render-supabase-rag-schema.mjs` to render the exact embedding dimension;
+- API runtime `/v1/rag/search` for `ADMIN/HR/AUDITOR` only;
+- RAG query audit stores SHA-256 of the query, counts/IDs/latency, not the raw question text;
+- Control Center manual RAG search UI; it never auto-runs a query.
 
-Actual Supabase pgvector / Modal / Hugging Face adapters are intentionally **not faked**. Connect them only after their accounts/schema/endpoints exist and add adapter-specific integration tests.
+D1 remains canonical for coverage/rotation/competition/assignment state. Supabase is a knowledge sidecar only.
 
-D1 remains canonical for coverage/rotation/competition/assignment state. Supabase must not become a second source of truth for those tables.
+### Connect Supabase + embeddings
+
+Choose an embedding model/endpoint first and obtain its exact vector dimension. The same model/dimension must be used for ingestion and query embeddings.
+
+Render the schema:
+
+```bash
+RAG_EMBEDDING_DIMENSIONS=<exact-dimension> pnpm render:rag-schema
+```
+
+Review `supabase/rag-schema.generated.sql`, then apply it manually to the intended Supabase project. The generated file is ignored by Git.
+
+Configure only in ignored/server-side environment:
+
+```text
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SECRET_KEY=<server-secret-key>
+SUPABASE_RAG_RPC=yrak_match_chunks
+RAG_EMBEDDING_BASE_URL=<https-compatible-endpoint-or-loopback>
+RAG_EMBEDDING_MODEL=<exact-embedding-model>
+RAG_EMBEDDING_API_KEY=<if-required>
+RAG_REQUEST_TIMEOUT_MS=30000
+```
+
+Never expose `SUPABASE_SECRET_KEY` or embedding-provider secrets through `VITE_*` or browser code.
+
+With API running and schema applied, smoke the runtime:
+
+```bash
+DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
+```
+
+This verifies embeddings + Supabase RPC + API response/citation contract. Zero results are allowed for a pure connection smoke. After indexing an authorized synthetic smoke document, require actual retrieval/citations:
+
+```bash
+REQUIRE_RAG_RESULTS=YES DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
+```
+
+The remaining RAG work for a complete knowledge pipeline is ingestion/chunking/OCR/jobs and optional reranking adapter(s); retrieval runtime itself is implemented but remains `UNVERIFIED` until the real account smoke passes.
 
 ## 12. External account connection matrix
 
 | Integration | What is ready in code | What must be supplied/tested |
 |---|---|---|
 | Cloudflare | Workers configs, D1/R2/Queue/DO/Workflow bindings, Access JWT verifier | account auth, real resource IDs, staging Access team domain/audience, secrets, deploy smoke |
-| Supabase | RAG ports/security boundary; Dashboard reports adapter pending | project, pgvector schema/RPC/adapter, server credential, retrieval tests |
-| Modal | server env placeholder; Dashboard reports adapter pending | endpoint/function contract, auth, synthetic job smoke |
-| Upstash | optional cache boundary only; Dashboard reports adapter pending | REST URL/token + adapter only if measured need exists |
-| NVIDIA | generic OpenAI-compatible provider already supported | API key + current compatible model ID + synthetic smoke |
-| Hugging Face | RAG model role only; Dashboard reports adapter pending | token + selected model/artifact workflow + adapter/job test |
-| Ollama | generic OpenAI-compatible provider | local install/model; no key by default |
-| Gmail test | mailbox identity placeholder; Dashboard reports adapter pending | Google OAuth/Gmail adapter and consent flow; not implemented yet |
+| Supabase | pgvector schema template, secure Retriever, API runtime, Dashboard query, smoke script | project URL + server secret, apply generated schema, embedding dimension, synthetic retrieval smoke |
+| Modal | server env placeholder + RAG/compute boundary | endpoint/function contract, auth, adapter and synthetic job smoke |
+| Upstash | optional cache boundary only | REST URL/token + adapter only if measured need exists |
+| NVIDIA | generic OpenAI-compatible text provider; embedding adapter can use compatible `/embeddings` when supported by selected endpoint | API key + current model IDs/capabilities + synthetic smokes |
+| Hugging Face | model/reranker/compute role defined, no runtime adapter yet | token + selected workflow/adapter + job smoke |
+| Ollama | generic OpenAI-compatible text + embedding endpoint support when installed model exposes it | local install/models; no key by default |
+| Gmail test | mailbox identity placeholder only | Google OAuth/Gmail adapter + consent/token-refresh/send/read tests |
 
 Never paste real secrets into chat, source code, GitHub issues, PR descriptions or screenshots.
 
@@ -279,12 +324,13 @@ Only after local gates pass:
 4. set secrets using platform secret storage;
 5. deploy API first;
 6. configure Cloudflare Access and verify signed JWT auth;
-7. enable bootstrap only if this is the initial empty staging DB, bootstrap once, then disable it;
+7. enable bootstrap only if this is the initial empty staging D1, bootstrap once, then disable it;
 8. deploy Agents, MCP and Maintenance;
 9. deploy Control Center/Employee Portal behind Access;
-10. run anti-header-spoof, role matrix, group-scope A/B, intake ownership, rotation 1–5, competition 6+, audit, backup/restore and provider/agent smoke tests;
-11. compare the real browser render against the approved Control Center mockup;
-12. only then consider production promotion.
+10. connect Supabase/embeddings and pass `smoke:rag`; do not report RAG healthy from credentials alone;
+11. run anti-header-spoof, role matrix, group-scope A/B, intake ownership, rotation 1–5, competition 6+, audit, notification recovery, provider/agent/MCP/RAG smokes and backup/restore;
+12. compare the real browser render against the approved Control Center mockup;
+13. only then consider production promotion.
 
 ## Definition of clone-ready vs production-ready
 
