@@ -3,7 +3,6 @@ const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
 const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
 const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
 const testAddress = process.env.GMAIL_TEST_ADDRESS?.trim();
-const recipient = process.env.GMAIL_TEST_RECIPIENT?.trim() || testAddress;
 const sendConfirmed = process.env.CONFIRM_GMAIL_SEND_TEST === 'YES';
 
 for (const [name, value] of Object.entries({
@@ -43,16 +42,16 @@ if (!sendConfirmed) {
     ok: true,
     oauthRefresh: true,
     messageSent: false,
-    next: 'Set CONFIRM_GMAIL_SEND_TEST=YES and GMAIL_TEST_ADDRESS to perform the synthetic send smoke.',
+    next: 'Set CONFIRM_GMAIL_SEND_TEST=YES and GMAIL_TEST_ADDRESS to perform a self-send synthetic smoke.',
   }, null, 2));
   process.exit(0);
 }
 
-if (!testAddress || !recipient) {
+if (!testAddress) {
   console.error('GMAIL_TEST_ADDRESS_REQUIRED_FOR_SEND');
   process.exit(2);
 }
-if (/[\r\n]/.test(testAddress) || /[\r\n]/.test(recipient)) {
+if (/[\r\n]/.test(testAddress) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testAddress)) {
   console.error('INVALID_GMAIL_TEST_ADDRESS');
   process.exit(2);
 }
@@ -65,7 +64,7 @@ const timestamp = new Date().toISOString();
 const messageId = `<yrak-smoke-${crypto.randomUUID()}@local.invalid>`;
 const mime = [
   `From: ${testAddress}`,
-  `To: ${recipient}`,
+  `To: ${testAddress}`,
   'Subject: YRAK Gmail API smoke test',
   `Date: ${new Date().toUTCString()}`,
   `Message-ID: ${messageId}`,
@@ -100,5 +99,6 @@ console.log(JSON.stringify({
   ok: true,
   oauthRefresh: true,
   messageSent: true,
+  selfSendOnly: true,
   gmailMessageIdPresent: true,
 }, null, 2));
