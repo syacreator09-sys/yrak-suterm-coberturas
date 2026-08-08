@@ -6,6 +6,19 @@ import { createAIProvider } from '../services/ai-service.js';
 export const systemRoutes = new Hono<AppBindings>();
 systemRoutes.use('*', requireRoles('ADMIN', 'HR', 'AUDITOR'));
 
+function configuredAi(env: AppEnv): { provider: string; model: string | null } {
+  const mode = env.AI_PROVIDER ?? 'workers-ai';
+  const provider = mode === 'compatible' ? (env.AI_COMPAT_PROVIDER_ID?.trim() || 'compatible') : mode;
+  const model = mode === 'compatible'
+    ? env.AI_COMPAT_TEXT_MODEL
+    : mode === 'openai'
+      ? env.OPENAI_TEXT_MODEL
+      : mode === 'anthropic'
+        ? env.ANTHROPIC_TEXT_MODEL
+        : env.WORKERS_AI_TEXT_MODEL;
+  return { provider, model: model ?? null };
+}
+
 systemRoutes.get('/health', async (c) => {
   let database: 'healthy' | 'down' = 'healthy';
   try {
@@ -13,6 +26,7 @@ systemRoutes.get('/health', async (c) => {
   } catch {
     database = 'down';
   }
+  const ai = configuredAi(c.env);
   return c.json({
     service: 'yrak-suterm-coberturas-api',
     environment: c.env.APP_ENV,
@@ -22,6 +36,8 @@ systemRoutes.get('/health', async (c) => {
     queue: c.env.NOTIFICATIONS_QUEUE ? 'configured' : 'not_configured',
     workflow: c.env.COVERAGE_WORKFLOW ? 'configured' : 'not_configured',
     email: c.env.EMAIL ? 'configured' : 'not_configured',
+    aiProvider: ai.provider,
+    aiModel: ai.model,
   });
 });
 
@@ -40,18 +56,6 @@ systemRoutes.get('/integrations', (c) => {
   ];
   return c.json({ items: integrations });
 });
-
-function configuredAi(env: AppEnv): { provider: string; model: string | null } {
-  const provider = env.AI_PROVIDER ?? 'workers-ai';
-  const model = provider === 'compatible'
-    ? env.AI_COMPAT_TEXT_MODEL
-    : provider === 'openai'
-      ? env.OPENAI_TEXT_MODEL
-      : provider === 'anthropic'
-        ? env.ANTHROPIC_TEXT_MODEL
-        : env.WORKERS_AI_TEXT_MODEL;
-  return { provider, model: model ?? null };
-}
 
 systemRoutes.post('/ai-smoke-test', requireRoles('ADMIN', 'HR'), async (c) => {
   if (c.env.APP_ENV === 'production') return c.json({ error: 'AI_SMOKE_TEST_DISABLED_IN_PRODUCTION' }, 403);
