@@ -15,6 +15,7 @@
     "scan:secrets": "node scripts/secret-scan.mjs",
     "verify:rc": "bash scripts/verify-release-candidate.sh",
     "bootstrap:local": "bash scripts/bootstrap-local.sh",
+    "seed:local": "node scripts/seed-local.mjs",
     "dev:api": "pnpm --filter @yrak/api-worker dev",
     "dev:admin": "pnpm --filter @yrak/admin-web dev",
     "dev:agents": "pnpm --filter @yrak/agent-worker dev",
