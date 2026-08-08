@@ -11,6 +11,14 @@ export async function correlation(context: Context<AppBindings>, next: Next): Pr
   context.header('x-correlation-id', context.get('correlationId'));
 }
 
+export async function apiSecurityHeaders(context: Context<AppBindings>, next: Next): Promise<void> {
+  await next();
+  context.header('cache-control', 'private, no-store');
+  context.header('x-content-type-options', 'nosniff');
+  context.header('x-frame-options', 'DENY');
+  context.header('referrer-policy', 'no-referrer');
+}
+
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
   const accessEmail = context.req.header('Cf-Access-Authenticated-User-Email');
   const developmentEmail = context.env.APP_ENV === 'development' ? context.req.header('x-yrak-user-email') : undefined;
