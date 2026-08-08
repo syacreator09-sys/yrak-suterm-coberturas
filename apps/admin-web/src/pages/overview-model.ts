@@ -12,9 +12,9 @@ export interface OverviewMetrics {
 }
 
 export function buildOverviewMetrics(input: {
-  employees?: readonly unknown[];
-  groups?: readonly unknown[];
-  coverages?: readonly CoverageSummaryRow[];
+  employees?: readonly unknown[] | undefined;
+  groups?: readonly unknown[] | undefined;
+  coverages?: readonly CoverageSummaryRow[] | undefined;
 }): OverviewMetrics {
   const coverages = input.coverages;
   return {
