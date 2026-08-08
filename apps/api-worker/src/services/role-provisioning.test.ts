@@ -8,11 +8,13 @@ describe('canProvisionRole', () => {
     }
   });
 
-  it('prevents HR from creating ADMIN or AUDITOR identities', () => {
+  it('prevents HR from creating organization-wide privileged identities', () => {
     expect(canProvisionRole('HR', 'ADMIN')).toBe(false);
+    expect(canProvisionRole('HR', 'HR')).toBe(false);
     expect(canProvisionRole('HR', 'AUDITOR')).toBe(false);
-    expect(canProvisionRole('HR', 'HR')).toBe(true);
     expect(canProvisionRole('HR', 'SUPERVISOR')).toBe(true);
+    expect(canProvisionRole('HR', 'COMMITTEE')).toBe(true);
+    expect(canProvisionRole('HR', 'OPERATOR')).toBe(true);
     expect(canProvisionRole('HR', 'EMPLOYEE')).toBe(true);
   });
 
