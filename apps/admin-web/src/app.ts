@@ -2,6 +2,7 @@ import { ApiError } from './core/api-client.js';
 import type { PageContext } from './core/page-context.js';
 import { canAccessSection } from './core/permissions.js';
 import { navigate, routeForHash } from './core/router.js';
+import { safeExternalUrl } from './core/security.js';
 import { employeePortalUrl, loadSession } from './core/session.js';
 import type { AppEnvironment, AppSection } from './core/types.js';
 import { mountShell, type ShellHandle } from './layout/app-shell.js';
@@ -66,9 +67,10 @@ export async function startApp(): Promise<void> {
   try {
     const session = await loadSession();
     if (session.user.role === 'EMPLOYEE') {
-      const portalUrl = employeePortalUrl();
+      const configuredPortalUrl = employeePortalUrl();
+      const portalUrl = configuredPortalUrl ? safeExternalUrl(configuredPortalUrl, environment) : null;
       if (!portalUrl) {
-        root.innerHTML = `<main class="main-view"><section class="panel"><h1>Portal del trabajador no configurado</h1>${renderAlert('Configura VITE_EMPLOYEE_PORTAL_URL para este entorno antes de habilitar acceso de trabajadores.', 'warning')}</section></main>`;
+        root.innerHTML = `<main class="main-view"><section class="panel"><h1>Portal del trabajador no configurado</h1>${renderAlert('Configura VITE_EMPLOYEE_PORTAL_URL con una ruta relativa válida, HTTPS o localhost en desarrollo antes de habilitar acceso de trabajadores.', 'warning')}</section></main>`;
         return;
       }
       window.location.assign(portalUrl);
