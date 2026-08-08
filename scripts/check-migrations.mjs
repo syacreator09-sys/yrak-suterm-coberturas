@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = resolve(root, 'migrations');
+const exceptionPath = resolve(dir, 'sequence-exceptions.json');
 const files = readdirSync(dir).filter((name) => name.endsWith('.sql')).sort();
 const parsed = files.map((name) => {
   const match = /^(\d{4})[_-]/.exec(name);
@@ -40,16 +41,60 @@ if (!numbers.length) {
   process.exit(1);
 }
 
+let exceptionEntries = [];
+if (existsSync(exceptionPath)) {
+  try {
+    const body = JSON.parse(readFileSync(exceptionPath, 'utf8'));
+    exceptionEntries = Array.isArray(body?.gaps) ? body.gaps : [];
+  } catch {
+    console.error('FAIL  migrations/sequence-exceptions.json is invalid JSON');
+    failures += 1;
+  }
+}
+
+const exceptions = new Map();
+for (const entry of exceptionEntries) {
+  const number = Number(entry?.number);
+  const reason = typeof entry?.reason === 'string' ? entry.reason.trim() : '';
+  if (!Number.isInteger(number) || number <= 0 || reason.length < 20) {
+    console.error(`FAIL  invalid migration gap exception: ${JSON.stringify(entry)}`);
+    failures += 1;
+    continue;
+  }
+  if (exceptions.has(number)) {
+    console.error(`FAIL  duplicate migration gap exception: ${String(number).padStart(4, '0')}`);
+    failures += 1;
+    continue;
+  }
+  exceptions.set(number, reason);
+}
+
 const gaps = [];
 for (let value = numbers[0]; value <= numbers[numbers.length - 1]; value += 1) {
   if (!byNumber.has(value)) gaps.push(value);
 }
-if (gaps.length) {
-  console.error(`FAIL  migration sequence gap(s): ${gaps.map((n) => String(n).padStart(4, '0')).join(', ')}`);
-  console.error('      Do not renumber existing applied migrations. Inspect history and add a forward-only migration or document an intentional exception before release.');
+
+const unexpectedGaps = gaps.filter((number) => !exceptions.has(number));
+if (unexpectedGaps.length) {
+  console.error(`FAIL  undocumented migration sequence gap(s): ${unexpectedGaps.map((n) => String(n).padStart(4, '0')).join(', ')}`);
+  console.error('      Do not renumber existing applied migrations. Document a verified historical exception or add a forward-only migration when semantically required.');
   failures += 1;
-} else {
+}
+
+for (const number of gaps.filter((value) => exceptions.has(value))) {
+  console.log(`PASS  documented historical gap ${String(number).padStart(4, '0')}: ${exceptions.get(number)}`);
+}
+
+const staleExceptions = [...exceptions.keys()].filter((number) => !gaps.includes(number));
+if (staleExceptions.length) {
+  console.error(`FAIL  stale migration gap exception(s) no longer represent a gap: ${staleExceptions.map((n) => String(n).padStart(4, '0')).join(', ')}`);
+  failures += 1;
+}
+
+if (!gaps.length) {
   console.log(`PASS  migration sequence contiguous: ${String(numbers[0]).padStart(4, '0')}..${String(numbers[numbers.length - 1]).padStart(4, '0')}`);
+} else if (!unexpectedGaps.length) {
+  console.log(`PASS  migration numbering audited: ${String(numbers[0]).padStart(4, '0')}..${String(numbers[numbers.length - 1]).padStart(4, '0')} with ${gaps.length} documented historical gap(s)`);
 }
 
 if (failures) process.exit(1);
