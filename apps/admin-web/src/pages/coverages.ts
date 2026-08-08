@@ -2,6 +2,7 @@ import { api } from '../core/api-client.js';
 import type { PageContext } from '../core/page-context.js';
 import type { ListResponse } from '../core/types.js';
 import { nullableText, optionsHtml, renderPageError } from '../core/page-utils.js';
+import { escapeText } from '../core/security.js';
 import { confirmCriticalAction, renderField, renderJson, renderLoading, renderTable, showToast, withBusy } from '../components/ui.js';
 
 type Row = Record<string, unknown>;
@@ -24,20 +25,17 @@ export async function renderCoverages(ctx: PageContext): Promise<void> {
   const canCreate = isRole(role, ['ADMIN', 'HR', 'SUPERVISOR', 'OPERATOR']);
   const canSelect = canCreate;
   const canApprove = isRole(role, ['ADMIN', 'HR', 'SUPERVISOR']);
-  const canLoadConfig = isRole(role, ['ADMIN', 'HR']);
 
   try {
-    const coverages = (await api.get<ListResponse<Row>>('/v1/coverage-cases')).items;
-    const groups = canLoadConfig ? (await api.get<ListResponse<Row>>('/v1/config/groups')).items : [];
+    const [coverages, groups] = await Promise.all([
+      api.get<ListResponse<Row>>('/v1/coverage-cases').then((x) => x.items),
+      canCreate ? api.get<ListResponse<Row>>('/v1/reference/groups').then((x) => x.items) : Promise.resolve([] as Row[]),
+    ]);
     ctx.root.innerHTML = `<div class="page-stack">
       ${canCreate ? `<section class="page-grid">
         <article class="panel span-5"><h2>Nueva cobertura</h2><form id="coverage-form">
-          ${canLoadConfig
-            ? renderField('Grupo', `<select name="groupId" id="coverage-group" required><option value="">Seleccione</option>${optionsHtml(groups)}</select>`)
-            : renderField('Group ID', '<input name="groupId" required>', 'Se valida contra los grupos autorizados por la API.')}
-          ${canLoadConfig
-            ? renderField('Nivel destino', '<select name="targetLevelId" id="coverage-level" required><option value="">Seleccione grupo primero</option></select>')
-            : renderField('Target Level ID', '<input name="targetLevelId" required>')}
+          ${renderField('Grupo', `<select name="groupId" id="coverage-group" required><option value="">Seleccione</option>${optionsHtml(groups)}</select>`)}
+          ${renderField('Nivel destino', '<select name="targetLevelId" id="coverage-level" required><option value="">Seleccione grupo primero</option></select>')}
           <div class="form-grid">
             ${renderField('Inicio', '<input name="startDate" type="date" required>')}
             ${renderField('Fin', '<input name="endDate" type="date" required>')}
@@ -65,7 +63,7 @@ export async function renderCoverages(ctx: PageContext): Promise<void> {
       group.addEventListener('change', async () => {
         level.disabled = true;
         try {
-          const rows = group.value ? (await api.get<ListResponse<Row>>(`/v1/config/groups/${encodeURIComponent(group.value)}/levels`)).items : [];
+          const rows = group.value ? (await api.get<ListResponse<Row>>(`/v1/reference/groups/${encodeURIComponent(group.value)}/levels`)).items : [];
           level.innerHTML = `<option value="">Seleccione</option>${optionsHtml(rows)}`;
         } catch (error) {
           level.innerHTML = '<option value="">Error al cargar niveles</option>';
@@ -133,17 +131,24 @@ async function renderCoverageDetail(
   target.innerHTML = renderLoading('Cargando expediente…');
   try {
     const detail = await api.get<CoverageDetail>(`/v1/coverage-cases/${encodeURIComponent(id)}`);
-    target.innerHTML = `<div class="panel"><div class="section-heading"><div><h2>Expediente</h2><p>${String(detail.coverage.id ?? id)}</p></div></div>
+    const processType = String(detail.coverage.process_type ?? '');
+    const status = String(detail.coverage.status ?? '');
+    const canSelectRotation = permissions.canSelect && processType === 'ROTATION' && !['COMPLETED', 'CANCELLED'].includes(status);
+    const canApproveRotation = permissions.canApprove && processType === 'ROTATION' && !['COMPLETED', 'CANCELLED'].includes(status);
+    const canCloseOrCancel = permissions.canApprove && !['COMPLETED', 'CANCELLED'].includes(status);
+
+    target.innerHTML = `<div class="panel"><div class="section-heading"><div><h2>Expediente</h2><p>${escapeText(detail.coverage.id ?? id)}</p></div></div>
       <dl class="key-value">
-        <dt>Estado</dt><dd>${String(detail.coverage.status ?? '—')}</dd>
-        <dt>Proceso</dt><dd>${String(detail.coverage.process_type ?? '—')}</dd>
-        <dt>Días efectivos</dt><dd>${String(detail.coverage.effective_days ?? '—')}</dd>
-        <dt>Inicio</dt><dd>${String(detail.coverage.starts_on ?? '—')}</dd>
-        <dt>Fin</dt><dd>${String(detail.coverage.ends_on ?? '—')}</dd>
+        <dt>Estado</dt><dd>${escapeText(status || '—')}</dd>
+        <dt>Proceso</dt><dd>${escapeText(processType || '—')}</dd>
+        <dt>Días efectivos</dt><dd>${escapeText(detail.coverage.effective_days ?? '—')}</dd>
+        <dt>Inicio</dt><dd>${escapeText(detail.coverage.starts_on ?? '—')}</dd>
+        <dt>Fin</dt><dd>${escapeText(detail.coverage.ends_on ?? '—')}</dd>
       </dl>
       <div class="actions">
-        ${permissions.canSelect ? '<button class="secondary" id="coverage-select" type="button">Seleccionar rotación</button>' : ''}
-        ${permissions.canApprove ? '<button class="primary" id="coverage-approve" type="button">Aprobar</button><button class="secondary" id="coverage-complete" type="button">Cerrar / regresar a base</button><label class="field" style="margin:0"><span class="field-label">Cancelación iniciada consume turno</span><input id="cancel-consumes-turn" type="checkbox" style="width:auto"></label><button class="danger" id="coverage-cancel" type="button">Cancelar</button>' : ''}
+        ${canSelectRotation ? '<button class="secondary" id="coverage-select" type="button">Seleccionar rotación</button>' : ''}
+        ${canApproveRotation ? '<button class="primary" id="coverage-approve" type="button">Aprobar rotación</button>' : ''}
+        ${canCloseOrCancel ? '<button class="secondary" id="coverage-complete" type="button">Cerrar / regresar a base</button><label class="field" style="margin:0"><span class="field-label">Cancelación iniciada consume turno</span><input id="cancel-consumes-turn" type="checkbox" style="width:auto"></label><button class="danger" id="coverage-cancel" type="button">Cancelar</button>' : ''}
       </div></div>
       <div class="panel"><h3>Asignaciones</h3>${renderTable(detail.assignments, [
         { key: 'id', label: 'ID' }, { key: 'employee_id', label: 'Trabajador' }, { key: 'base_level_id', label: 'Base' }, { key: 'target_level_id', label: 'Destino' }, { key: 'status', label: 'Estado' },
@@ -165,7 +170,7 @@ async function renderCoverageDetail(
       }).catch((error) => showToast(error instanceof Error ? error.message : error, 'danger'));
     });
     target.querySelector<HTMLButtonElement>('#coverage-approve')?.addEventListener('click', async (event) => {
-      if (!await confirmCriticalAction({ title: 'Aprobar cobertura', message: 'Confirma la aprobación del expediente. La API validará estado, permisos y reglas antes de realizar cualquier cambio.', confirmLabel: 'Aprobar' })) return;
+      if (!await confirmCriticalAction({ title: 'Aprobar rotación', message: 'Confirma la aprobación del expediente. La API validará estado, permisos y reglas antes de realizar cualquier cambio.', confirmLabel: 'Aprobar' })) return;
       const button = event.currentTarget as HTMLButtonElement;
       await withBusy(button, async () => {
         await api.post(`/v1/coverage-cases/${encodeURIComponent(id)}/approve`);
