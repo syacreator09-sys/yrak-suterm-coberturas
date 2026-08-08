@@ -1,13 +1,13 @@
 openapi: 3.1.0
 info:
   title: YRAK Control Center Supplemental API
-  version: 0.1.0
+  version: 0.2.0
   description: >-
-    Contrato suplementario para vistas read-only, health, revisión de intake e
-    IA sintética del YRAK Control Center. No sustituye openapi/yrak-api.yaml ni
-    otorga autoridad laboral al frontend o a la IA.
+    Contrato suplementario para vistas read-only, health, revisión de intake,
+    RAG autorizado e IA sintética del YRAK Control Center. No sustituye
+    openapi/yrak-api.yaml ni otorga autoridad laboral al frontend o a la IA.
 security:
-  - cloudflareAccess: []
+  - cloudflareAccessJwt: []
 paths:
   /v1/reference/groups:
     get:
@@ -71,11 +71,40 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200':
-          description: Metadata y extracción estructurada del borrador
+        '200': { description: Metadata y extracción estructurada del borrador }
         '403': { description: Borrador creado por otro usuario o fuera del scope }
         '404': { description: Borrador inexistente }
         '500': { description: JSON persistido inválido; no se consume el borrador }
+  /v1/rag/search:
+    post:
+      operationId: searchAuthorizedRag
+      summary: Recupera chunks RAG dentro del scope autorizado del usuario
+      description: >-
+        Sólo retrieval/citas. El backend deriva organization/group scope de la
+        identidad autenticada, lo pasa al adapter y vuelve a validar cada chunk
+        antes de responder. La auditoría persiste hash SHA-256 de la consulta,
+        no el texto de la consulta. No toma decisiones laborales.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [query]
+              properties:
+                query: { type: string, minLength: 2, maxLength: 2000 }
+                topK: { type: integer, minimum: 1, maximum: 20, default: 8 }
+      responses:
+        '200':
+          description: Chunks y citas autorizados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RagSearchResponse'
+        '403': { description: Rol no autorizado }
+        '502': { description: Adapter devolvió un resultado fuera del scope y la respuesta fue bloqueada }
+        '503': { description: RAG no configurado o upstream no disponible }
   /v1/system/health:
     get:
       operationId: getControlCenterSystemHealth
@@ -97,16 +126,12 @@ paths:
                   queue: { $ref: '#/components/schemas/BindingStatus' }
                   workflow: { $ref: '#/components/schemas/BindingStatus' }
                   email: { $ref: '#/components/schemas/BindingStatus' }
-                  aiProvider:
-                    type: string
-                    description: ID público/no secreto del proveedor activo
-                  aiModel:
-                    type: [string, 'null']
-                    description: ID del modelo activo; nunca contiene credenciales
+                  aiProvider: { type: string, description: ID público/no secreto del proveedor activo }
+                  aiModel: { type: [string, 'null'], description: ID del modelo activo; nunca contiene credenciales }
   /v1/system/integrations:
     get:
       operationId: getControlCenterIntegrations
-      summary: Indica configuración detectada sin devolver valores secretos
+      summary: Indica implementación/configuración detectada sin devolver valores secretos
       responses:
         '200':
           description: Metadatos no secretos de integraciones
@@ -125,7 +150,9 @@ paths:
                         id:
                           type: string
                           enum: [cloudflare, supabase, upstash, modal, nvidia, huggingface, ollama, gmail]
+                        implemented: { type: boolean }
                         configured: { type: boolean }
+                        declared: { type: boolean }
                         detail: { type: string }
   /v1/system/ai-smoke-test:
     post:
@@ -155,10 +182,14 @@ paths:
                       error: { type: string, const: AI_SMOKE_TEST_FAILED }
 components:
   securitySchemes:
-    cloudflareAccess:
+    cloudflareAccessJwt:
       type: apiKey
       in: header
-      name: Cf-Access-Authenticated-User-Email
+      name: Cf-Access-Jwt-Assertion
+      description: >-
+        JWT emitido por Cloudflare Access. El API valida firma RS256/JWKS,
+        issuer, audience, expiración, nbf y email. El header de email de Access
+        no es una credencial aceptada por el backend.
   parameters:
     GroupId:
       in: path
@@ -178,6 +209,41 @@ components:
         model: { type: [string, 'null'] }
         latencyMs: { type: integer, minimum: 0 }
         responseChars: { type: integer, minimum: 0 }
+    RagCitation:
+      type: object
+      required: [documentId, chunkId]
+      properties:
+        documentId: { type: string }
+        chunkId: { type: string }
+        page: { type: [integer, 'null'], minimum: 1 }
+        section: { type: [string, 'null'] }
+        documentVersion: { type: [string, 'null'] }
+        source: { type: [string, 'null'] }
+    RagChunk:
+      type: object
+      required: [chunkId, documentId, organizationId, text, score, status]
+      properties:
+        chunkId: { type: string }
+        documentId: { type: string }
+        organizationId: { type: string }
+        groupId: { type: [string, 'null'] }
+        text: { type: string }
+        score: { type: number }
+        status: { type: string }
+        page: { type: [integer, 'null'] }
+        section: { type: [string, 'null'] }
+        documentVersion: { type: [string, 'null'] }
+        source: { type: [string, 'null'] }
+    RagSearchResponse:
+      type: object
+      required: [items, citations]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RagChunk' }
+        citations:
+          type: array
+          items: { $ref: '#/components/schemas/RagCitation' }
     ItemsResponse:
       type: object
       required: [items]
