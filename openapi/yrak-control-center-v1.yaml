@@ -3,9 +3,9 @@ info:
   title: YRAK Control Center Supplemental API
   version: 0.1.0
   description: >-
-    Contrato suplementario para vistas read-only, health e IA sintética del
-    YRAK Control Center. No sustituye openapi/yrak-api.yaml ni otorga autoridad
-    laboral al frontend o a la IA.
+    Contrato suplementario para vistas read-only, health, revisión de intake e
+    IA sintética del YRAK Control Center. No sustituye openapi/yrak-api.yaml ni
+    otorga autoridad laboral al frontend o a la IA.
 security:
   - cloudflareAccess: []
 paths:
@@ -58,6 +58,24 @@ paths:
         '200': { description: Cola de rotación }
         '403': { description: Pool/grupo fuera del scope del usuario }
         '404': { description: Pool inexistente }
+  /v1/intake/drafts/{draftId}:
+    get:
+      operationId: getIntakeDraftForReview
+      summary: Carga un borrador para revisión humana
+      description: >-
+        ADMIN/HR pueden consultar borradores de su organización. SUPERVISOR y
+        OPERATOR sólo pueden consultar borradores creados por ellos mismos.
+      parameters:
+        - in: path
+          name: draftId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Metadata y extracción estructurada del borrador
+        '403': { description: Borrador creado por otro usuario o fuera del scope }
+        '404': { description: Borrador inexistente }
+        '500': { description: JSON persistido inválido; no se consume el borrador }
   /v1/system/health:
     get:
       operationId: getControlCenterSystemHealth
@@ -116,15 +134,19 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [ok, provider, model, latencyMs, responseChars]
-                properties:
-                  ok: { type: boolean }
-                  provider: { type: string }
-                  model: { type: [string, 'null'] }
-                  latencyMs: { type: integer, minimum: 0 }
-                  responseChars: { type: integer, minimum: 0 }
+                $ref: '#/components/schemas/AiSmokeResult'
         '403': { description: Rol no autorizado o producción }
+        '503':
+          description: Proveedor no configurado, no disponible o fallo de inferencia; no devuelve detalle secreto
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AiSmokeResult'
+                  - type: object
+                    required: [error]
+                    properties:
+                      error: { type: string, const: AI_SMOKE_TEST_FAILED }
 components:
   securitySchemes:
     cloudflareAccess:
@@ -141,6 +163,15 @@ components:
     BindingStatus:
       type: string
       enum: [configured, not_configured]
+    AiSmokeResult:
+      type: object
+      required: [ok, provider, model, latencyMs, responseChars]
+      properties:
+        ok: { type: boolean }
+        provider: { type: string }
+        model: { type: [string, 'null'] }
+        latencyMs: { type: integer, minimum: 0 }
+        responseChars: { type: integer, minimum: 0 }
     ItemsResponse:
       type: object
       required: [items]
