@@ -64,7 +64,7 @@ export async function renderInfrastructure(ctx: PageContext): Promise<void> {
       <section class="panel"><h2>Cloudflare runtime</h2><div class="integration-grid">
         ${[['D1', system.database], ['R2', system.r2], ['Workers AI', system.workersAi], ['Queue', system.queue], ['Workflow', system.workflow], ['Email', system.email]].map(([label, value]) => `<article class="integration-card card"><header><h3>${escapeText(label)}</h3></header><p>${escapeText(value)}</p></article>`).join('')}
       </div></section>
-      <section><div class="section-heading"><div><h2>Servicios del stack</h2><p>Vista unificada; los secretos permanecen sólo en el entorno del servidor.</p></div></div><div class="integration-grid" style="margin-top:12px">${cards}</div></section>
+      <section><div class="section-heading"><div><h2>Servicios del stack</h2><p>Vista unificada; los secretos permanecen sólo en el entorno del servidor.</p></div></div><div class="integration-grid mt-12">${cards}</div></section>
     </div>`;
   } catch (error) {
     ctx.root.innerHTML = renderPageError(error);
