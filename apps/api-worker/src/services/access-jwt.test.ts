@@ -62,10 +62,12 @@ async function expectCode(promise: Promise<unknown>, code: string) {
 }
 
 describe('Cloudflare Access JWT claims', () => {
-  it('normalizes a Cloudflare Access team domain to HTTPS origin', () => {
+  it('normalizes only a Cloudflare Access team domain to HTTPS origin', () => {
     expect(normalizeAccessTeamOrigin('yrak.cloudflareaccess.com')).toBe('https://yrak.cloudflareaccess.com');
     expect(() => normalizeAccessTeamOrigin('http://yrak.cloudflareaccess.com')).toThrow(AccessJwtValidationError);
     expect(() => normalizeAccessTeamOrigin('https://yrak.cloudflareaccess.com/path')).toThrow(AccessJwtValidationError);
+    expect(() => normalizeAccessTeamOrigin('https://example.com')).toThrow('ACCESS_TEAM_DOMAIN_INVALID');
+    expect(() => normalizeAccessTeamOrigin('REPLACE_WITH_ACCESS_TEAM_DOMAIN')).toThrow('ACCESS_TEAM_DOMAIN_REQUIRED');
   });
 
   it('accepts valid audience arrays and claims', () => {
