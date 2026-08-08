@@ -1,7 +1,9 @@
 # Copiar a apps/api-worker/.dev.vars. Este archivo real está ignorado por Git.
 # Usa valores sintéticos en desarrollo. No pegues secretos reales en commits, issues o prompts.
 
-# Sólo para bootstrap local autorizado. Cambiar antes de usar fuera del flujo sintético local.
+# Bootstrap está deshabilitado por defecto en el Worker. Este ejemplo lo habilita únicamente
+# para el seed local sintético. En staging: habilitar temporalmente, bootstrap, luego retirar/deshabilitar.
+BOOTSTRAP_ENABLED=true
 BOOTSTRAP_TOKEN=local-change-me
 
 # AI_PROVIDER del wrangler base es workers-ai.
@@ -27,7 +29,7 @@ BOOTSTRAP_TOKEN=local-change-me
 # AI_COMPAT_TEXT_MODEL=<modelo-elegido-en-el-catalogo-actual>
 # AI_COMPAT_API_KEY=<secret>
 
-# Futuras conexiones server-side del RAG/control plane. Déjalas vacías hasta implementar/verificar adaptador.
+# Futuras conexiones server-side del RAG/control plane. Déjalas vacías hasta implementar/verificar adapter.
 # SUPABASE_URL=
 # UPSTASH_REDIS_REST_URL=
 # MODAL_ENDPOINT_URL=
