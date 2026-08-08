@@ -2,6 +2,7 @@ export interface CoverageSummaryRow {
   id?: string;
   status?: string;
   process_type?: string;
+  group_id?: string;
   target_level_id?: string;
   starts_on?: string;
   ends_on?: string;
@@ -80,8 +81,7 @@ export function buildUpcomingCoverages(
       const timestamp = new Date(`${isoDateOnly(row.starts_on)}T00:00:00Z`).getTime();
       return Number.isFinite(timestamp) && timestamp >= start && timestamp <= end;
     })
-    .sort((a, b) => String(a.starts_on ?? '').localeCompare(String(b.starts_on ?? '')))
-    .slice(0, 6);
+    .sort((a, b) => String(a.starts_on ?? '').localeCompare(String(b.starts_on ?? '')));
 }
 
 export function buildRecentCoverageActivity(coverages: readonly CoverageSummaryRow[]): RecentCoverageActivity[] {
