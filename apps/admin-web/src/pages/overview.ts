@@ -22,7 +22,7 @@ export async function renderOverview(ctx: PageContext): Promise<void> {
   try {
     const [employees, groups, coverages] = await Promise.all([
       optionalList('/v1/employees'),
-      optionalList('/v1/config/groups'),
+      optionalList('/v1/reference/groups'),
       optionalList('/v1/coverage-cases'),
     ]);
     const coverageRows = coverages as CoverageSummaryRow[] | undefined;
