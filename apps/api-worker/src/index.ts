@@ -16,6 +16,7 @@ import { attachmentRoutes } from './routes/attachments.js';
 import { intakeRoutes } from './routes/intake.js';
 import { importRoutes } from './routes/imports.js';
 import { reportRoutes } from './routes/reports.js';
+import { ragRoutes } from './routes/rag.js';
 import { processNotification } from './notification-consumer.js';
 import { processInboundEmail } from './services/inbound-email-service.js';
 import { toPublicError } from './services/public-error.js';
@@ -63,6 +64,7 @@ app.route('/v1/intake', intakeRoutes);
 app.route('/v1/import', importRoutes);
 app.route('/v1/reports', reportRoutes);
 app.route('/v1/audit', auditRoutes);
+app.route('/v1/rag', ragRoutes);
 
 app.onError((error, c) => {
   const publicError = toPublicError(error);
