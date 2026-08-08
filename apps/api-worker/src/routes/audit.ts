@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../env.js';
-import { assertGroupAccess, requireRoles } from '../middleware.js';
+import { assertGroupAccess, hasOrganizationWideRead, requireRoles } from '../middleware.js';
 
 export const auditRoutes = new Hono<AppBindings>();
 
@@ -8,9 +8,8 @@ auditRoutes.get('/:entityType/:entityId', requireRoles('ADMIN', 'HR', 'AUDITOR',
   const user = c.get('user');
   const entityType = c.req.param('entityType').toUpperCase();
   const entityId = c.req.param('entityId');
-  const unrestricted = user.role === 'ADMIN' || user.role === 'HR' || user.role === 'AUDITOR';
 
-  if (!unrestricted) {
+  if (!hasOrganizationWideRead(user.role)) {
     let scoped: { group_id: string } | null = null;
     if (entityType === 'COVERAGE_CASE') {
       scoped = await c.env.DB.prepare(`SELECT group_id FROM coverage_cases WHERE id=? AND organization_id=?`)
