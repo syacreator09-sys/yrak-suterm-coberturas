@@ -63,6 +63,7 @@ node --check scripts/check-migrations.mjs
 node --check scripts/secret-scan.mjs
 node --check scripts/seed-local.mjs
 node --check scripts/smoke-local-connections.mjs
+node --check scripts/smoke-agent-support.mjs
 node --check scripts/smoke-ai-provider.mjs
 
 cat <<'EOF'
