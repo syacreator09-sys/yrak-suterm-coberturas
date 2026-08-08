@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { AppBindings } from '../env.js';
+import type { AppBindings, AppEnv } from '../env.js';
 import { requireRoles } from '../middleware.js';
 import { createAIProvider } from '../services/ai-service.js';
 
@@ -40,22 +40,22 @@ systemRoutes.get('/integrations', (c) => {
   return c.json({ items: integrations });
 });
 
-function configuredAi(c: Parameters<(typeof systemRoutes)['get']>[1] extends never ? never : any) {
-  const provider = c.env.AI_PROVIDER ?? 'workers-ai';
+function configuredAi(env: AppEnv): { provider: string; model: string | null } {
+  const provider = env.AI_PROVIDER ?? 'workers-ai';
   const model = provider === 'compatible'
-    ? c.env.AI_COMPAT_TEXT_MODEL
+    ? env.AI_COMPAT_TEXT_MODEL
     : provider === 'openai'
-      ? c.env.OPENAI_TEXT_MODEL
+      ? env.OPENAI_TEXT_MODEL
       : provider === 'anthropic'
-        ? c.env.ANTHROPIC_TEXT_MODEL
-        : c.env.WORKERS_AI_TEXT_MODEL;
+        ? env.ANTHROPIC_TEXT_MODEL
+        : env.WORKERS_AI_TEXT_MODEL;
   return { provider, model: model ?? null };
 }
 
 systemRoutes.post('/ai-smoke-test', requireRoles('ADMIN', 'HR'), async (c) => {
   if (c.env.APP_ENV === 'production') return c.json({ error: 'AI_SMOKE_TEST_DISABLED_IN_PRODUCTION' }, 403);
   const started = Date.now();
-  const configured = configuredAi(c);
+  const configured = configuredAi(c.env);
   try {
     const provider = createAIProvider(c.env);
     const text = await provider.generate({
