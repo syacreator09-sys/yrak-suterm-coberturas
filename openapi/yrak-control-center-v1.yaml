@@ -1,0 +1,152 @@
+openapi: 3.1.0
+info:
+  title: YRAK Control Center Supplemental API
+  version: 0.1.0
+  description: >-
+    Contrato suplementario para vistas read-only, health e IA sintética del
+    YRAK Control Center. No sustituye openapi/yrak-api.yaml ni otorga autoridad
+    laboral al frontend o a la IA.
+security:
+  - cloudflareAccess: []
+paths:
+  /v1/reference/groups:
+    get:
+      operationId: listReferenceGroups
+      summary: Lista grupos visibles para el usuario autenticado
+      responses:
+        '200':
+          description: Grupos activos dentro del scope del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemsResponse'
+  /v1/reference/groups/{groupId}/levels:
+    get:
+      operationId: listReferenceLevels
+      summary: Lista niveles activos de un grupo autorizado
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200': { description: Niveles visibles }
+        '403': { description: Grupo fuera del scope del usuario }
+        '404': { description: Grupo inexistente }
+  /v1/reference/requirements:
+    get:
+      operationId: listReferenceRequirements
+      summary: Lista catálogo activo de requisitos de la organización
+      responses:
+        '200': { description: Requisitos activos }
+  /v1/reference/groups/{groupId}/rotation-pools:
+    get:
+      operationId: listReferenceRotationPools
+      summary: Lista pools activos del grupo autorizado
+      parameters:
+        - $ref: '#/components/parameters/GroupId'
+      responses:
+        '200': { description: Pools activos }
+        '403': { description: Grupo fuera del scope del usuario }
+  /v1/reference/rotation-pools/{poolId}/queue:
+    get:
+      operationId: getReferenceRotationQueue
+      summary: Cola de rotación read-only para un pool autorizado
+      parameters:
+        - in: path
+          name: poolId
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Cola de rotación }
+        '403': { description: Pool/grupo fuera del scope del usuario }
+        '404': { description: Pool inexistente }
+  /v1/system/health:
+    get:
+      operationId: getControlCenterSystemHealth
+      summary: Estado básico del runtime sin secretos
+      responses:
+        '200':
+          description: Estado de D1 y bindings principales
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [service, environment, database, r2, workersAi, queue, workflow, email]
+                properties:
+                  service: { type: string }
+                  environment: { type: string, enum: [development, staging, production] }
+                  database: { type: string, enum: [healthy, down] }
+                  r2: { $ref: '#/components/schemas/BindingStatus' }
+                  workersAi: { $ref: '#/components/schemas/BindingStatus' }
+                  queue: { $ref: '#/components/schemas/BindingStatus' }
+                  workflow: { $ref: '#/components/schemas/BindingStatus' }
+                  email: { $ref: '#/components/schemas/BindingStatus' }
+  /v1/system/integrations:
+    get:
+      operationId: getControlCenterIntegrations
+      summary: Indica configuración detectada sin devolver valores secretos
+      responses:
+        '200':
+          description: Metadatos no secretos de integraciones
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, configured, detail]
+                      properties:
+                        id:
+                          type: string
+                          enum: [cloudflare, supabase, upstash, modal, nvidia, huggingface, ollama, gmail]
+                        configured: { type: boolean }
+                        detail: { type: string }
+  /v1/system/ai-smoke-test:
+    post:
+      operationId: runSyntheticAiSmokeTest
+      summary: Ejecuta prueba sintética sin datos laborales ni side effects
+      description: >-
+        Disponible sólo para ADMIN/HR en development o staging. Producción
+        devuelve 403. El prompt es fijo en backend y no acepta contenido del usuario.
+      responses:
+        '200':
+          description: Resultado técnico del proveedor configurado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, provider, model, latencyMs, responseChars]
+                properties:
+                  ok: { type: boolean }
+                  provider: { type: string }
+                  model: { type: [string, 'null'] }
+                  latencyMs: { type: integer, minimum: 0 }
+                  responseChars: { type: integer, minimum: 0 }
+        '403': { description: Rol no autorizado o producción }
+components:
+  securitySchemes:
+    cloudflareAccess:
+      type: apiKey
+      in: header
+      name: Cf-Access-Authenticated-User-Email
+  parameters:
+    GroupId:
+      in: path
+      name: groupId
+      required: true
+      schema: { type: string }
+  schemas:
+    BindingStatus:
+      type: string
+      enum: [configured, not_configured]
+    ItemsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
