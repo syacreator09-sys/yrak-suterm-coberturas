@@ -31,5 +31,21 @@ AI_REQUEST_TIMEOUT_MS=30000
 AI_PROFILE=production
 AI_MAX_PROVIDER_ATTEMPTS=2
 
+# Integraciones del Control Center / RAG.
+# Estas variables pertenecen al servidor. NUNCA usar prefijo VITE_ para secretos.
+# SUPABASE_URL=https://<project-ref>.supabase.co
+# UPSTASH_REDIS_REST_URL=https://<database>.upstash.io
+# MODAL_ENDPOINT_URL=https://<workspace>--<function>.modal.run
+# GMAIL_TEST_ADDRESS=yrak.pruebas@example.com
+#
+# Ollama/NVIDIA se detectan desde AI_COMPAT_PROVIDER_ID + AI_COMPAT_BASE_URL +
+# AI_COMPAT_TEXT_MODEL, que son las mismas variables que consume el adaptador real.
+#
+# Secretos relacionados, cargar por Wrangler/entorno y nunca Git:
+# HUGGINGFACE_TOKEN=<secret>
+# AI_COMPAT_API_KEY=<secret cuando corresponda>
+# Las credenciales Supabase/Upstash/Modal/Gmail se añadirán únicamente cuando
+# el adaptador correspondiente se implemente; no se exponen al navegador.
+
 # MCP (apps/mcp-worker)
 MCP_API_TOKEN=replace_me

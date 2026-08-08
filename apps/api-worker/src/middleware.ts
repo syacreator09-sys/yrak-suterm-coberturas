@@ -1,10 +1,35 @@
 import type { Context, Next } from 'hono';
 import type { AppBindings, AuthUser } from './env.js';
 
+export function hasOrganizationWideRead(role: AuthUser['role']): boolean {
+  return role === 'ADMIN' || role === 'HR' || role === 'AUDITOR';
+}
+
+export function isCrossSiteMutation(method: string, secFetchSite: string | undefined): boolean {
+  const normalizedMethod = method.toUpperCase();
+  if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD' || normalizedMethod === 'OPTIONS') return false;
+  return secFetchSite?.toLowerCase() === 'cross-site';
+}
+
 export async function correlation(context: Context<AppBindings>, next: Next): Promise<void> {
   context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
   await next();
   context.header('x-correlation-id', context.get('correlationId'));
+}
+
+export async function apiSecurityHeaders(context: Context<AppBindings>, next: Next): Promise<void> {
+  await next();
+  context.header('cache-control', 'private, no-store');
+  context.header('x-content-type-options', 'nosniff');
+  context.header('x-frame-options', 'DENY');
+  context.header('referrer-policy', 'no-referrer');
+}
+
+export async function rejectCrossSiteMutation(context: Context<AppBindings>, next: Next): Promise<Response | void> {
+  if (isCrossSiteMutation(context.req.method, context.req.header('Sec-Fetch-Site'))) {
+    return context.json({ error: 'CROSS_SITE_MUTATION_FORBIDDEN' }, 403);
+  }
+  await next();
 }
 
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
@@ -30,7 +55,7 @@ export async function assertGroupAccess(context: Context<AppBindings>, groupId: 
   const user = context.get('user');
   const group = await context.env.DB.prepare('SELECT id FROM groups WHERE id = ? AND organization_id = ? AND active = 1').bind(groupId, user.organizationId).first();
   if (!group) throw new Error('GROUP_NOT_FOUND');
-  if (user.role === 'ADMIN' || user.role === 'HR' || user.role === 'AUDITOR') return;
+  if (hasOrganizationWideRead(user.role)) return;
   const access = await context.env.DB.prepare('SELECT 1 AS ok FROM user_groups WHERE user_id = ? AND group_id = ?').bind(user.id, groupId).first();
   if (!access) throw new Error('GROUP_FORBIDDEN');
 }
