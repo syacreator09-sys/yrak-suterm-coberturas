@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { AuditWriter } from '@yrak/audit';
@@ -19,7 +19,7 @@ async function sha256Hex(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function accessContext(c: Parameters<Parameters<typeof ragRoutes.post>[1]>[0]) {
+async function accessContext(c: Context<AppBindings>) {
   const user = c.get('user');
   const organizationWide = hasOrganizationWideRead(user.role);
   if (organizationWide) {
