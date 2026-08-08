@@ -1,22 +1,20 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../env.js';
 import { hasOrganizationWideRead, requireRoles } from '../middleware.js';
+import { recordsToCsv } from '../services/csv-export.js';
 
 export const reportRoutes = new Hono<AppBindings>();
 reportRoutes.use('*', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'AUDITOR', 'COMMITTEE'));
 
-function csv(rows: Record<string, unknown>[]): string {
-  if (!rows.length) return '';
-  const keys = Object.keys(rows[0]!);
-  const escape = (value: unknown) => {
-    const text = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
-    return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  };
-  return [keys.join(','), ...rows.map((row) => keys.map((key) => escape(row[key])).join(','))].join('\n');
-}
-
 function response(rows: Record<string, unknown>[], filename: string) {
-  return new Response(csv(rows), { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${filename}"` } });
+  return new Response(recordsToCsv(rows), {
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="${filename}"`,
+      'x-content-type-options': 'nosniff',
+      'cache-control': 'private, no-store',
+    },
+  });
 }
 
 reportRoutes.get('/employees.csv', async (c) => {
