@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "yrak-readonly": {
+      "type": "http",
+      "url": "${YRAK_MCP_URL:-http://127.0.0.1:8789/mcp}",
+      "headers": {
+        "Authorization": "Bearer ${YRAK_MCP_TOKEN:-local-mcp-change-me}"
+      }
+    }
+  }
+}
