@@ -20,10 +20,12 @@ describe('Control Center permissions', () => {
     expect(canAccessSection('EMPLOYEE', 'audit')).toBe(false);
   });
 
-  it('allows AUDITOR read-oriented views but not settings', () => {
+  it('allows AUDITOR read-oriented views without intake mutations or settings', () => {
     expect(canAccessSection('AUDITOR', 'overview')).toBe(true);
+    expect(canAccessSection('AUDITOR', 'rotations')).toBe(true);
     expect(canAccessSection('AUDITOR', 'audit')).toBe(true);
     expect(canAccessSection('AUDITOR', 'reports')).toBe(true);
+    expect(canAccessSection('AUDITOR', 'documents')).toBe(false);
     expect(canAccessSection('AUDITOR', 'settings')).toBe(false);
   });
 });
