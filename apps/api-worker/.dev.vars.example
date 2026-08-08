@@ -1,22 +1,27 @@
 # Copiar a apps/api-worker/.dev.vars. Este archivo real está ignorado por Git.
 # Usa valores sintéticos en desarrollo. No pegues secretos reales en commits, issues o prompts.
 
-# Sólo para bootstrap local autorizado. Cambiar antes de usar.
+# Sólo para bootstrap local autorizado. Cambiar antes de usar fuera del flujo sintético local.
 BOOTSTRAP_TOKEN=local-change-me
 
-# Proveedores opcionales: configurar sólo el que vayas a probar.
-# AI_PROVIDER está en wrangler.jsonc y por defecto es workers-ai.
+# AI_PROVIDER del wrangler base es workers-ai.
+# Para que ESTE API Worker use un endpoint OpenAI-compatible, descomenta:
+# AI_PROVIDER=compatible
+
+# Proveedores opcionales: configura únicamente el que vayas a probar.
 # OPENAI_API_KEY=
 # ANTHROPIC_API_KEY=
 # AI_COMPAT_API_KEY=
 # HUGGINGFACE_TOKEN=
 
 # Ejemplo OpenAI-compatible local (Ollama). No requiere key por defecto.
+# AI_PROVIDER=compatible
 # AI_COMPAT_PROVIDER_ID=ollama-local
 # AI_COMPAT_BASE_URL=http://127.0.0.1:11434/v1
 # AI_COMPAT_TEXT_MODEL=qwen3:8b
 
 # Ejemplo OpenAI-compatible remoto (NVIDIA NIM u otro proveedor compatible).
+# AI_PROVIDER=compatible
 # AI_COMPAT_PROVIDER_ID=nvidia-nim
 # AI_COMPAT_BASE_URL=https://integrate.api.nvidia.com/v1
 # AI_COMPAT_TEXT_MODEL=<modelo-elegido-en-el-catalogo-actual>
