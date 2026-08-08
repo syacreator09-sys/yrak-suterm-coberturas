@@ -11,6 +11,7 @@ export async function loadSession(): Promise<AppSession> {
   return { user: data.user, employee: data.employee ?? null };
 }
 
-export function employeePortalUrl(): string {
-  return (import.meta.env.VITE_EMPLOYEE_PORTAL_URL as string | undefined) ?? '/employee/';
+export function employeePortalUrl(): string | null {
+  const configured = (import.meta.env.VITE_EMPLOYEE_PORTAL_URL as string | undefined)?.trim();
+  return configured || null;
 }
