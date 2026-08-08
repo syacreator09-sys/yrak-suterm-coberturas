@@ -1,78 +1,51 @@
 # YRAK — Clone, Test & Connect Runbook
 
-**Release-candidate branch:** `ready/clone-test-connect-v1`  
-**Do not merge to `main` until the full local + staging gates have observed evidence.**
+**Canonical release-candidate branch:** `ready/clone-test-connect-v2`  
+**Do not merge to `main` until local + staging gates have fresh observed evidence.**
 
-This guide is the canonical execution order for a fresh machine.
-
-## 1. Clone the isolated branch
+## 1. Clone
 
 ```bash
 git clone https://github.com/syacreator09-sys/yrak-suterm-coberturas.git
 cd yrak-suterm-coberturas
-git switch ready/clone-test-connect-v1
+git switch ready/clone-test-connect-v2
 ```
 
-For a private repository, authenticate Git/GitHub first using your normal credential flow. Do not put a PAT in a command that will be saved to shell history.
+Requirements: Node.js >=22, Git, Corepack/pnpm. The repo pins `pnpm@10.15.0`.
 
-Required runtime:
-
-- Node.js >=22
-- Corepack/pnpm (repo pins `pnpm@10.15.0`)
-- Git
-
-## 2. Bootstrap local files/dependencies
+## 2. Bootstrap local workspace
 
 ```bash
 bash scripts/bootstrap-local.sh
 ```
 
-This:
+This installs dependencies and creates ignored local config files from examples when missing. A tracked/reviewed `pnpm-lock.yaml` is still required before calling a release reproducible.
 
-- runs the environment doctor;
-- installs workspace dependencies;
-- creates ignored `.dev.vars` / `.env.local` files from safe examples only when missing;
-- reruns the doctor in strict mode.
-
-The first install currently generates `pnpm-lock.yaml` because a lockfile is not yet tracked. Review it and commit it only after the full gate succeeds. A release candidate without a reviewed lockfile is not reproducible enough for production.
-
-## 3. Static release-candidate gate
+## 3. Release-candidate gate
 
 ```bash
 pnpm verify:rc
 ```
 
-The gate checks:
+This is the static/compile/test/build gate for Admin, API, Agents, MCP, RAG, Employee Portal and Maintenance plus secret/migration/architecture checks and operational script syntax. Any failure blocks staging.
 
-- environment/required files;
-- migration numbering/exceptions;
-- tracked secret patterns;
-- architecture/security boundaries;
-- typecheck + tests + dry-run build for Admin, API, Agents, MCP, RAG core, Employee Portal and Maintenance;
-- root Turbo typecheck/test/build;
-- operational Node/Bash script syntax.
+## 4. Shared local D1
 
-If any step fails, fix that failure and rerun. Do not skip it to continue to staging.
-
-## 4. Apply local D1 migrations
-
-All Workers use a shared local Cloudflare persistence directory:
+All Workers use:
 
 ```text
 .wrangler/state/yrak-local
 ```
 
-Apply migrations to that same state:
+Apply migrations:
 
 ```bash
 bash scripts/migrate-local.sh
 ```
 
-Then keep the same `pnpm dev:*` commands below; each Worker already includes the same `--persist-to` path.
+The historical numbering gap `0013` is documented in `migrations/sequence-exceptions.json`; do not renumber historical migrations. Current forward migrations include `0019` for notification processing recovery.
 
-The historical missing number `0013` is documented in `migrations/sequence-exceptions.json`; do not invent or renumber an applied migration. Any other missing/duplicate/stale exception must fail the migration audit.
-
-## 5. Start API and create synthetic local organization
+## 5. Start and seed local API
 
 Terminal A:
 
@@ -80,92 +53,40 @@ Terminal A:
 pnpm dev:api
 ```
 
-The API is fixed to:
+API: `http://127.0.0.1:8787`
 
-```text
-http://127.0.0.1:8787
-```
-
-The local API `.dev.vars.example` contains:
-
-```text
-BOOTSTRAP_ENABLED=true
-BOOTSTRAP_TOKEN=local-change-me
-```
-
-Bootstrap is fail-closed in code. Outside this synthetic local workflow it must be explicitly enabled. In staging, enable it only for the authorized initial bootstrap and remove/disable it immediately after the organization/admin exists.
-
-In a second terminal:
+Second terminal:
 
 ```bash
 pnpm seed:local
 ```
 
-Defaults are local synthetic values:
+Synthetic defaults are `admin@example.com` / `YRAK Local Test`. The seed refuses remote URLs and synchronizes the generated organization ID into ignored Agent/MCP `.dev.vars` files.
 
-- admin: `admin@example.com`
-- organization: `YRAK Local Test`
-- bootstrap token: `local-change-me`
+Bootstrap is fail-closed: production can never bootstrap; development requires loopback; staging requires explicit temporary enable + token.
 
-The script refuses remote URLs. It synchronizes the generated local organization ID into the ignored Agent/MCP `.dev.vars` files.
-
-## 6. Start the remaining local services
-
-Terminal B:
+## 6. Start remaining services
 
 ```bash
-pnpm dev:agents
+pnpm dev:agents       # 127.0.0.1:8788
+pnpm dev:mcp          # 127.0.0.1:8789
+pnpm dev:maintenance  # 127.0.0.1:8790 (optional for basic UI smoke)
+pnpm dev:admin        # Vite prints URL, normally 5173
 ```
 
-Agents: `http://127.0.0.1:8788`
+Use separate terminals. Maintenance is the sole scheduled-maintenance owner; API does not own a cron.
 
-Terminal C:
-
-```bash
-pnpm dev:mcp
-```
-
-MCP: `http://127.0.0.1:8789`
-
-Terminal D:
-
-```bash
-pnpm dev:admin
-```
-
-Vite will print the local Control Center URL (normally port 5173). The Admin frontend proxies `/v1`, `/health`, `/ready` and `/bootstrap` to API `8787`.
-
-Maintenance is optional during UI/API smoke:
-
-```bash
-pnpm dev:maintenance
-```
-
-Maintenance: `http://127.0.0.1:8790`
-
-## 7. Run read-only connection smoke
-
-With API/Agents/MCP running:
+## 7. Read-only local smoke
 
 ```bash
 DEV_USER_EMAIL=admin@example.com pnpm smoke:local
 ```
 
-This performs only read/health/auth-negative checks. It does not create a coverage, change a queue, rank a candidate, approve an assignment or invoke an AI model.
+This checks health/readiness/auth-negative behavior and does not mutate labor state or invoke a model.
 
-Expected services:
+## 8. Claude Code project runtime
 
-| Service | Local port | Public check |
-|---|---:|---|
-| API | 8787 | `/health`, `/ready` |
-| Agents | 8788 | `/health`, `/ready` |
-| MCP | 8789 | `/health`, `/ready` |
-| Admin | Vite | browser UI |
-| Maintenance | 8790 | optional during UI smoke |
-
-## 8. Claude Code project skills/subagents
-
-Project skills live under `.claude/skills/`:
+Project skills:
 
 - `yrak-domain-guardrails`
 - `yrak-verification`
@@ -174,54 +95,40 @@ Project skills live under `.claude/skills/`:
 - `yrak-ai-router`
 - `yrak-rag-connectors`
 
-Project subagents live under `.claude/agents/`:
+Project subagents:
 
-- `yrak-auditor` — read-only audit, no shell/edit tools;
-- `yrak-test-runner` — evidence-only test execution;
-- `yrak-code-reviewer` — read-only merge review, no shell/edit tools;
-- `yrak-cloudflare-integrator` — staging integrator with normal permission prompts.
+- `yrak-auditor` — read-only, no Bash/Edit/Write;
+- `yrak-code-reviewer` — read-only, no Bash/Edit/Write;
+- `yrak-test-runner` — may execute verification commands, no edits/deploy;
+- `yrak-cloudflare-integrator` — staging integration with normal permission prompts.
 
-Use `inherit` model selection so the project does not depend on a hard-coded Claude model ID.
+All use `model: inherit`; the repo does not pin a Claude model ID.
 
-After adding/updating agent files during an active Claude Code session, reload/restart the session if needed so project agents are rediscovered.
+## 9. MCP
 
-## 9. Claude Code MCP
-
-The repository contains project-scoped `.mcp.json` for `yrak-readonly`.
-
-Local defaults:
+`.mcp.json` contains project-scoped `yrak-readonly` with environment expansion. Local defaults use:
 
 ```text
 YRAK_MCP_URL=http://127.0.0.1:8789/mcp
 YRAK_MCP_TOKEN=local-mcp-change-me
 ```
 
-The values in `.mcp.json` use environment expansion; no real token is committed. For staging, export the real staging URL/token in your shell/secret manager before starting Claude Code:
+For staging, supply URL/token through shell/secret manager before launching Claude Code. MCP business tools are read-only; the only write is append-only `mcp_access_log`.
 
-```bash
-export YRAK_MCP_URL='https://<staging-mcp-host>/mcp'
-export YRAK_MCP_TOKEN='<secret-from-your-secret-manager>'
-claude
-```
+## 10. AI / Agent smoke
 
-Then use `/mcp` or `claude mcp get yrak-readonly` to inspect the connection. The MCP server remains read-only by contract and only appends MCP access logs.
-
-## 10. Agent/model test
-
-For a no-cloud model test, use a local OpenAI-compatible provider such as Ollama in the ignored Agent `.dev.vars`:
+Local compatible provider example:
 
 ```text
 AI_PROFILE=local
 AI_COMPAT_PROVIDER_ID=ollama-local
 AI_COMPAT_BASE_URL=http://127.0.0.1:11434/v1
-AI_COMPAT_TEXT_MODEL=<installed-local-model>
+AI_COMPAT_TEXT_MODEL=<installed-model>
 ```
 
-Do not expose Ollama port `11434` publicly.
+Never expose Ollama `11434` publicly.
 
-For NVIDIA NIM or another compatible provider, set the compatible provider URL/model and key only in ignored/deployment secrets. Verify the provider's current model catalog rather than copying a model ID from old docs.
-
-Standalone fixed-prompt provider smoke:
+Standalone compatible-provider smoke:
 
 ```bash
 AI_COMPAT_PROVIDER_ID=... \
@@ -231,109 +138,165 @@ AI_COMPAT_API_KEY=... \
 pnpm smoke:ai
 ```
 
-Then validate the real YRAK Agent Worker path (Durable Object + DB + router + model) with a synthetic, non-mutating support question:
+Agent Worker path:
 
 ```bash
 AGENT_API_TOKEN=local-agent-change-me pnpm smoke:agent
 ```
 
-The functional agent smoke must identify a 4-day case as **rotación** and verify that the session history persisted. It never creates a coverage or performs a labor mutation.
+Agent history is bounded/minimized; raw intake text/extracted payloads are not persisted in session history and common PII fields are redacted from audit facts before model use.
 
-## 11. RAG — implemented runtime, pending real connection evidence
+## 11. RAG retrieval
 
-The repository now contains:
+Implemented:
 
-- provider-agnostic Retriever/Reranker/Embedding/DocumentStore ports;
-- organization/group access filters before retrieval;
-- active-document requirement;
-- fail-closed revalidation of returned chunks;
-- reranker trust boundary: it cannot introduce a chunk or replace canonical retrieved text;
-- bounded top-K and structured citations;
-- `OpenAICompatibleEmbeddingProvider` for HTTPS/loopback `/embeddings` endpoints;
-- `SupabasePgvectorRetriever` using a server-side Supabase secret key;
-- `supabase/rag-schema.template.sql` with pgvector/HNSW, RLS/revokes and scoped `yrak_match_chunks` RPC;
-- `scripts/render-supabase-rag-schema.mjs` to render the exact embedding dimension;
-- API runtime `/v1/rag/search` for `ADMIN/HR/AUDITOR` only;
-- RAG query audit stores SHA-256 of the query, counts/IDs/latency, not the raw question text;
-- Control Center manual RAG search UI; it never auto-runs a query.
+- provider-agnostic RAG core;
+- fail-closed org/group authorization boundary;
+- active-document enforcement;
+- reranker cannot introduce or replace canonical chunks;
+- OpenAI-compatible `/embeddings` adapter;
+- Supabase pgvector RPC retriever;
+- dimension-safe Supabase schema renderer;
+- `POST /v1/rag/search` for `ADMIN/HR/AUDITOR`;
+- query audit stores SHA-256, not raw query text;
+- Control Center manual search UI;
+- `smoke:rag`.
 
-D1 remains canonical for coverage/rotation/competition/assignment state. Supabase is a knowledge sidecar only.
+D1 remains canonical for labor state; Supabase is knowledge sidecar only.
 
-### Connect Supabase + embeddings
-
-Choose an embedding model/endpoint first and obtain its exact vector dimension. The same model/dimension must be used for ingestion and query embeddings.
-
-Render the schema:
+Choose the exact embeddings model/dimension, then:
 
 ```bash
 RAG_EMBEDDING_DIMENSIONS=<exact-dimension> pnpm render:rag-schema
 ```
 
-Review `supabase/rag-schema.generated.sql`, then apply it manually to the intended Supabase project. The generated file is ignored by Git.
-
-Configure only in ignored/server-side environment:
+Review/apply the ignored `supabase/rag-schema.generated.sql` to the authorized Supabase project, then configure server-side only:
 
 ```text
 SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SECRET_KEY=<server-secret-key>
+SUPABASE_SECRET_KEY=<secret>
 SUPABASE_RAG_RPC=yrak_match_chunks
-RAG_EMBEDDING_BASE_URL=<https-compatible-endpoint-or-loopback>
-RAG_EMBEDDING_MODEL=<exact-embedding-model>
+RAG_EMBEDDING_BASE_URL=<https-endpoint-or-loopback>
+RAG_EMBEDDING_MODEL=<exact-model>
 RAG_EMBEDDING_API_KEY=<if-required>
 RAG_REQUEST_TIMEOUT_MS=30000
 ```
 
-Never expose `SUPABASE_SECRET_KEY` or embedding-provider secrets through `VITE_*` or browser code.
-
-With API running and schema applied, smoke the runtime:
+Connection smoke:
 
 ```bash
 DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
 ```
 
-This verifies embeddings + Supabase RPC + API response/citation contract. Zero results are allowed for a pure connection smoke. After indexing an authorized synthetic smoke document, require actual retrieval/citations:
+After adding an authorized synthetic indexed document:
 
 ```bash
 REQUIRE_RAG_RESULTS=YES DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
 ```
 
-The remaining RAG work for a complete knowledge pipeline is ingestion/chunking/OCR/jobs and optional reranking adapter(s); retrieval runtime itself is implemented but remains `UNVERIFIED` until the real account smoke passes.
+Remaining RAG work after retrieval is verified: production ingestion/chunking/OCR jobs, optional reranker adapter and evaluations.
 
-## 12. External account connection matrix
+## 12. Gmail test connection
 
-| Integration | What is ready in code | What must be supplied/tested |
-|---|---|---|
-| Cloudflare | Workers configs, D1/R2/Queue/DO/Workflow bindings, Access JWT verifier | account auth, real resource IDs, staging Access team domain/audience, secrets, deploy smoke |
-| Supabase | pgvector schema template, secure Retriever, API runtime, Dashboard query, smoke script | project URL + server secret, apply generated schema, embedding dimension, synthetic retrieval smoke |
-| Modal | server env placeholder + RAG/compute boundary | endpoint/function contract, auth, adapter and synthetic job smoke |
-| Upstash | optional cache boundary only | REST URL/token + adapter only if measured need exists |
-| NVIDIA | generic OpenAI-compatible text provider; embedding adapter can use compatible `/embeddings` when supported by selected endpoint | API key + current model IDs/capabilities + synthetic smokes |
-| Hugging Face | model/reranker/compute role defined, no runtime adapter yet | token + selected workflow/adapter + job smoke |
-| Ollama | generic OpenAI-compatible text + embedding endpoint support when installed model exposes it | local install/models; no key by default |
-| Gmail test | mailbox identity placeholder only | Google OAuth/Gmail adapter + consent/token-refresh/send/read tests |
+`smoke:gmail` verifies OAuth refresh without printing tokens/bodies. A send test is explicit and **self-send only** to `GMAIL_TEST_ADDRESS`.
 
-Never paste real secrets into chat, source code, GitHub issues, PR descriptions or screenshots.
+OAuth-only:
 
-## 13. Staging gate
+```bash
+GOOGLE_OAUTH_CLIENT_ID=... \
+GOOGLE_OAUTH_CLIENT_SECRET=... \
+GOOGLE_OAUTH_REFRESH_TOKEN=... \
+pnpm smoke:gmail
+```
 
-Only after local gates pass:
+Explicit self-send synthetic test:
 
-1. authenticate Wrangler to the intended Cloudflare account;
-2. provision/resolve staging resources;
-3. replace `REPLACE_WITH_*` values for the staging deployment configuration only;
-4. set secrets using platform secret storage;
-5. deploy API first;
-6. configure Cloudflare Access and verify signed JWT auth;
-7. enable bootstrap only if this is the initial empty staging D1, bootstrap once, then disable it;
-8. deploy Agents, MCP and Maintenance;
-9. deploy Control Center/Employee Portal behind Access;
-10. connect Supabase/embeddings and pass `smoke:rag`; do not report RAG healthy from credentials alone;
-11. run anti-header-spoof, role matrix, group-scope A/B, intake ownership, rotation 1–5, competition 6+, audit, notification recovery, provider/agent/MCP/RAG smokes and backup/restore;
-12. compare the real browser render against the approved Control Center mockup;
-13. only then consider production promotion.
+```bash
+CONFIRM_GMAIL_SEND_TEST=YES \
+GMAIL_TEST_ADDRESS=<dedicated-test-mailbox> \
+GOOGLE_OAUTH_CLIENT_ID=... \
+GOOGLE_OAUTH_CLIENT_SECRET=... \
+GOOGLE_OAUTH_REFRESH_TOKEN=... \
+pnpm smoke:gmail
+```
 
-## Definition of clone-ready vs production-ready
+This is a connection smoke, not yet the production notification adapter used by YRAK.
 
-**Clone-ready** means the repository contains the code, safe examples, skills/agents, deterministic local ports/state path and verification scripts needed to begin observed testing.
+## 13. Cloudflare staging configs
 
-**Production-ready** requires fresh successful outputs from the full local and staging gates plus real resource/provider evidence. Do not use those terms interchangeably.
+Do **not** edit tracked Wrangler files with real IDs. Generate ignored staging configs:
+
+```bash
+CONFIRM_YRAK_STAGING=YES \
+YRAK_STAGING_D1_DATABASE_ID=... \
+YRAK_STAGING_D1_DATABASE_NAME=... \
+YRAK_STAGING_ORGANIZATION_ID=... \
+YRAK_STAGING_ACCESS_TEAM_DOMAIN=<team>.cloudflareaccess.com \
+YRAK_STAGING_ACCESS_AUD=... \
+YRAK_STAGING_EMAIL_FROM=... \
+YRAK_STAGING_R2_BUCKET=... \
+YRAK_STAGING_QUEUE=... \
+YRAK_STAGING_WORKFLOW=... \
+pnpm render:cloudflare-staging
+```
+
+Then:
+
+```bash
+CONFIRM_YRAK_STAGING=YES pnpm preflight:staging
+```
+
+The preflight requires isolated `*-staging` Worker names, one shared D1/org/queue, Access values, no local `dev` block, no placeholders and no secret-bearing variables in the generated config.
+
+### One-time staging bootstrap
+
+Only for an empty authorized staging DB:
+
+```bash
+CONFIRM_YRAK_STAGING=YES CONFIRM_STAGING_BOOTSTRAP=YES pnpm staging:bootstrap:on
+```
+
+Run preflight with the explicit bootstrap window:
+
+```bash
+CONFIRM_YRAK_STAGING=YES \
+CONFIRM_STAGING_BOOTSTRAP=YES \
+ALLOW_STAGING_BOOTSTRAP=YES \
+pnpm preflight:staging
+```
+
+After bootstrap, immediately:
+
+```bash
+CONFIRM_YRAK_STAGING=YES pnpm staging:bootstrap:off
+CONFIRM_YRAK_STAGING=YES pnpm preflight:staging
+```
+
+Redeploy API and remove/rotate the temporary bootstrap secret.
+
+## 14. Secrets
+
+Canonical inventory: `docs/CONNECTIONS_CHECKLIST.md`.
+
+Never put provider/database/OAuth/token secrets in Git, PRs, issues, screenshots, prompts or `VITE_*`. Use ignored local files and platform secret storage.
+
+## 15. Promotion gate
+
+Before `main`:
+
+1. `pnpm verify:rc` passes on exact v2 head;
+2. fresh local D1 migrations + seed + service smokes pass;
+3. `pnpm-lock.yaml` is generated/reviewed/tracked and gate rerun;
+4. Cloudflare staging config preflight passes;
+5. staging D1/R2/Queue/DO/Workflow/Access/Workers are observed healthy;
+6. anti-header-spoof test passes;
+7. role matrix + org/group A/B isolation pass;
+8. intake ownership, 1–5 rotation, 6+ competition, audit and CSV behavior pass;
+9. notification duplicate/recovery behavior passes;
+10. Agents + MCP + selected AI provider smokes pass;
+11. RAG live smoke passes if enabled;
+12. browser desktop/mobile fidelity + CSP pass;
+13. backup/restore + rollback are observed;
+14. final security/code review runs on exact promotion head.
+
+**Prepared for clone/testing is not production-ready.** Production-ready requires the fresh evidence above.
