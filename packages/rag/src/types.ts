@@ -23,11 +23,11 @@ export interface RetrievedChunk {
   groupId?: string | null;
   text: string;
   score: number;
+  status: string;
   page?: number | null;
   section?: string | null;
   documentVersion?: string | null;
   source?: string | null;
-  status?: string | null;
 }
 
 export interface RagCitation {
