@@ -1,0 +1,18 @@
+# Copiar a apps/agent-worker/.dev.vars. El archivo real está ignorado por Git.
+
+# Token interno para llamadas al Agent Worker. Usar un valor largo/aleatorio fuera de desarrollo.
+AGENT_API_TOKEN=local-agent-change-me
+
+# Debe coincidir con una organización sintética existente en D1 local.
+AGENT_ORGANIZATION_ID=REPLACE_WITH_LOCAL_ORGANIZATION_ID
+
+# Perfil recomendado para prueba local.
+AI_PROFILE=local
+AI_MAX_PROVIDER_ATTEMPTS=2
+AI_REQUEST_TIMEOUT_MS=30000
+
+# Opcional: proveedor OpenAI-compatible para validar routing sin cambiar código.
+# AI_COMPAT_PROVIDER_ID=ollama-local
+# AI_COMPAT_BASE_URL=http://127.0.0.1:11434/v1
+# AI_COMPAT_TEXT_MODEL=qwen3:8b
+# AI_COMPAT_API_KEY=
