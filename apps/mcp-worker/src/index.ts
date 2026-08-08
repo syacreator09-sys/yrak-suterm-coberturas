@@ -80,15 +80,6 @@ function createServer(env: Env) {
   return server;
 }
 
-function configured(env: Env): boolean {
-  return Boolean(
-    env.MCP_API_TOKEN &&
-    env.MCP_API_TOKEN !== 'local-mcp-change-me' &&
-    env.MCP_ORGANIZATION_ID &&
-    !env.MCP_ORGANIZATION_ID.startsWith('REPLACE_'),
-  );
-}
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
