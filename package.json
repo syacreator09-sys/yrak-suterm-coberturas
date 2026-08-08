@@ -13,6 +13,7 @@
     "doctor": "node scripts/doctor.mjs",
     "audit:migrations": "node scripts/check-migrations.mjs",
     "audit:architecture": "node scripts/check-architecture-boundaries.mjs",
+    "audit:commands": "node scripts/check-command-references.mjs",
     "scan:secrets": "node scripts/secret-scan.mjs",
     "verify:rc": "bash scripts/verify-release-candidate.sh",
     "bootstrap:local": "bash scripts/bootstrap-local.sh",
