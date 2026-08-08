@@ -44,7 +44,7 @@ create index if not exists idx_yrak_rag_chunks_document
   on public.yrak_rag_chunks(document_id, chunk_index);
 
 create index if not exists idx_yrak_rag_chunks_embedding_hnsw
-  on public.yrak_rag_chunks using hnsw (embedding extensions.vector_cosine_ops);
+  on public.yrak_rag_chunks using hnsw (embedding vector_cosine_ops);
 
 alter table public.yrak_rag_documents enable row level security;
 alter table public.yrak_rag_chunks enable row level security;
