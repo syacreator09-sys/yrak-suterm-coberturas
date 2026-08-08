@@ -11,14 +11,17 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
-printf '\n[1/12] Environment doctor\n'
+printf '\n[1/13] Environment doctor\n'
 node scripts/doctor.mjs --strict
 
-printf '\n[2/12] Migration sequence audit\n'
+printf '\n[2/13] Migration sequence audit\n'
 node scripts/check-migrations.mjs
 
-printf '\n[3/12] Tracked secret scan\n'
+printf '\n[3/13] Tracked secret scan\n'
 node scripts/secret-scan.mjs
+
+printf '\n[4/13] Architecture/security boundaries\n'
+node scripts/check-architecture-boundaries.mjs
 
 verify_package() {
   local package="$1"
@@ -31,40 +34,46 @@ verify_package() {
   pnpm --filter "$package" build
 }
 
-printf '\n[4/12] Admin Control Center\n'
+printf '\n[5/13] Admin Control Center\n'
 verify_package @yrak/admin-web 'Admin Control Center'
 
-printf '\n[5/12] API Worker\n'
+printf '\n[6/13] API Worker\n'
 verify_package @yrak/api-worker 'API Worker'
 
-printf '\n[6/12] Agent Worker\n'
+printf '\n[7/13] Agent Worker\n'
 verify_package @yrak/agent-worker 'Agent Worker'
 
-printf '\n[7/12] MCP Worker\n'
+printf '\n[8/13] MCP Worker\n'
 verify_package @yrak/mcp-worker 'MCP Worker'
 
-printf '\n[8/12] RAG core\n'
+printf '\n[9/13] RAG core\n'
 verify_package @yrak/rag 'RAG core'
 
-printf '\n[9/12] Employee Portal\n'
+printf '\n[10/13] Employee Portal\n'
 verify_package @yrak/employee-portal 'Employee Portal'
 
-printf '\n[10/12] Maintenance Worker\n'
+printf '\n[11/13] Maintenance Worker\n'
 verify_package @yrak/maintenance-worker 'Maintenance Worker'
 
-printf '\n[11/12] Whole monorepo through Turbo\n'
+printf '\n[12/13] Whole monorepo through Turbo\n'
 pnpm typecheck
 pnpm test
 pnpm build
 
-printf '\n[12/12] Operational script syntax\n'
+printf '\n[13/13] Operational script syntax\n'
 node --check scripts/doctor.mjs
 node --check scripts/check-migrations.mjs
 node --check scripts/secret-scan.mjs
+node --check scripts/check-architecture-boundaries.mjs
 node --check scripts/seed-local.mjs
 node --check scripts/smoke-local-connections.mjs
 node --check scripts/smoke-agent-support.mjs
 node --check scripts/smoke-ai-provider.mjs
+bash -n scripts/bootstrap-local.sh
+bash -n scripts/migrate-local.sh
+bash -n scripts/verify-local.sh
+bash -n scripts/verify-control-center.sh
+bash -n scripts/verify-release-candidate.sh
 
 cat <<'EOF'
 
