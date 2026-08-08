@@ -4,35 +4,45 @@ No real credential value belongs in this document, Git, a PR, an issue, screensh
 
 ## Cloudflare staging
 
-Public/non-secret deployment values:
+The staging renderer requires explicit confirmation plus these public/non-secret deployment values:
 
-- `CLOUDFLARE_D1_DATABASE_ID`
-- `YRAK_ORGANIZATION_ID`
-- `ACCESS_TEAM_DOMAIN` (`<team>.cloudflareaccess.com`)
-- `ACCESS_AUD`
-- `EMAIL_FROM` (verified sender)
+- `YRAK_STAGING_D1_DATABASE_ID`
+- `YRAK_STAGING_D1_DATABASE_NAME`
+- `YRAK_STAGING_ORGANIZATION_ID`
+- `YRAK_STAGING_ACCESS_TEAM_DOMAIN` (`<team>.cloudflareaccess.com`)
+- `YRAK_STAGING_ACCESS_AUD`
+- `YRAK_STAGING_EMAIL_FROM` (verified sender)
+- `YRAK_STAGING_R2_BUCKET`
+- `YRAK_STAGING_QUEUE`
+- `YRAK_STAGING_WORKFLOW`
+- optional worker-name overrides: `YRAK_STAGING_API_WORKER_NAME`, `YRAK_STAGING_AGENT_WORKER_NAME`, `YRAK_STAGING_MCP_WORKER_NAME`, `YRAK_STAGING_MAINTENANCE_WORKER_NAME`
 
-Use them only to render ignored staging configs:
+Render ignored staging configs only after confirming the values belong to the authorized staging environment:
 
 ```bash
-CLOUDFLARE_D1_DATABASE_ID=... \
-YRAK_ORGANIZATION_ID=... \
-ACCESS_TEAM_DOMAIN=... \
-ACCESS_AUD=... \
-EMAIL_FROM=... \
+CONFIRM_YRAK_STAGING=YES \
+YRAK_STAGING_D1_DATABASE_ID=... \
+YRAK_STAGING_D1_DATABASE_NAME=... \
+YRAK_STAGING_ORGANIZATION_ID=... \
+YRAK_STAGING_ACCESS_TEAM_DOMAIN=... \
+YRAK_STAGING_ACCESS_AUD=... \
+YRAK_STAGING_EMAIL_FROM=... \
+YRAK_STAGING_R2_BUCKET=... \
+YRAK_STAGING_QUEUE=... \
+YRAK_STAGING_WORKFLOW=... \
 pnpm render:cloudflare-staging
 
 pnpm preflight:staging
 ```
 
-Cloudflare authentication itself should use Wrangler's normal authenticated flow; do not commit an account API token into the repo.
+The generated `wrangler.staging.local.jsonc` files are ignored by Git and contain non-secret staging identifiers only. Cloudflare authentication itself should use Wrangler's normal authenticated flow; do not commit an account API token into the repo.
 
 Server secrets to put into the applicable Worker using platform secret storage:
 
 - API: `BOOTSTRAP_TOKEN` only during authorized initial staging bootstrap; remove/rotate/disable afterward.
 - Agents: `AGENT_API_TOKEN`.
 - MCP: `MCP_API_TOKEN`.
-- Optional provider secrets below only where the provider is enabled.
+- Optional provider/RAG secrets below only where the provider is enabled.
 
 ## Text/agent AI providers
 
