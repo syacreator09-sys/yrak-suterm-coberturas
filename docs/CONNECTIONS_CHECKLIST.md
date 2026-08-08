@@ -32,17 +32,40 @@ YRAK_STAGING_QUEUE=... \
 YRAK_STAGING_WORKFLOW=... \
 pnpm render:cloudflare-staging
 
+CONFIRM_YRAK_STAGING=YES pnpm preflight:staging
+```
+
+The generated `wrangler.staging.local.jsonc` files are ignored by Git, use Worker names ending in `-staging`, and contain non-secret staging identifiers only. Cloudflare authentication itself should use Wrangler's normal authenticated flow; do not commit an account API token into the repo.
+
+### One-time empty staging bootstrap
+
+Generated staging config has bootstrap disabled. Only for the initial empty D1:
+
+```bash
+CONFIRM_YRAK_STAGING=YES \
+CONFIRM_STAGING_BOOTSTRAP=YES \
+pnpm staging:bootstrap:on
+
+CONFIRM_YRAK_STAGING=YES \
+CONFIRM_STAGING_BOOTSTRAP=YES \
+ALLOW_STAGING_BOOTSTRAP=YES \
 pnpm preflight:staging
 ```
 
-The generated `wrangler.staging.local.jsonc` files are ignored by Git and contain non-secret staging identifiers only. Cloudflare authentication itself should use Wrangler's normal authenticated flow; do not commit an account API token into the repo.
+Set `BOOTSTRAP_TOKEN` as a Worker secret, deploy/bootstrap exactly once, then immediately:
+
+```bash
+CONFIRM_YRAK_STAGING=YES pnpm staging:bootstrap:off
+CONFIRM_YRAK_STAGING=YES pnpm preflight:staging
+```
+
+Redeploy the API with bootstrap disabled and delete/rotate the bootstrap secret when no longer required.
 
 Server secrets to put into the applicable Worker using platform secret storage:
 
-- API: `BOOTSTRAP_TOKEN` only during authorized initial staging bootstrap; remove/rotate/disable afterward.
-- Agents: `AGENT_API_TOKEN`.
+- API: `BOOTSTRAP_TOKEN` only during authorized initial staging bootstrap; RAG/provider secrets below when those adapters are enabled.
+- Agents: `AGENT_API_TOKEN` plus provider key only when needed.
 - MCP: `MCP_API_TOKEN`.
-- Optional provider/RAG secrets below only where the provider is enabled.
 
 ## Text/agent AI providers
 
@@ -85,7 +108,19 @@ Before applying the Supabase schema, obtain the exact embedding dimensions and r
 RAG_EMBEDDING_DIMENSIONS=<exact-dimension> pnpm render:rag-schema
 ```
 
-The selected model used for document ingestion and query embeddings must be identical/compatible with the stored vector dimension.
+Review the generated ignored SQL before applying it to the intended Supabase project. The selected model used for document ingestion and query embeddings must be identical/compatible with the stored vector dimension.
+
+Connection smoke:
+
+```bash
+DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
+```
+
+After indexing an authorized synthetic document:
+
+```bash
+REQUIRE_RAG_RESULTS=YES DEV_USER_EMAIL=admin@example.com pnpm smoke:rag
+```
 
 ## Agents
 
@@ -100,7 +135,13 @@ Required local/staging identity values:
 - `AGENT_ORGANIZATION_ID`
 - `AGENT_API_TOKEN` (secret)
 
-Model configuration follows the AI provider section above.
+Model configuration follows the AI provider section above. Functional smoke:
+
+```bash
+AGENT_API_TOKEN=... pnpm smoke:agent
+```
+
+It uses a synthetic 4-day question and must preserve the `ROTATION` invariant; it does not create a coverage.
 
 ## MCP
 
@@ -148,13 +189,31 @@ Reserved:
 
 Do not report Hugging Face connected merely because the token exists. A selected model/artifact/job path and smoke test must exist first.
 
-## Gmail test — OAuth adapter pending
+## Gmail test — OAuth smoke implemented; runtime adapter not required yet
 
-Current non-secret identity placeholder:
+This repository intentionally treats Gmail as a **test integration**, not as the canonical notification transport.
 
+Required only in local shell/secret manager when testing:
+
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `GOOGLE_OAUTH_CLIENT_SECRET` — secret
+- `GOOGLE_OAUTH_REFRESH_TOKEN` — secret
 - `GMAIL_TEST_ADDRESS`
+- optional `GMAIL_TEST_RECIPIENT` (defaults to the test address)
 
-Future server secrets must use explicit OAuth names and secret storage (for example client secret/refresh token after the consent flow is implemented). Never use `VITE_*` for OAuth secrets.
+OAuth refresh-only smoke; sends no message:
+
+```bash
+pnpm smoke:gmail
+```
+
+Actual synthetic send requires explicit confirmation:
+
+```bash
+CONFIRM_GMAIL_SEND_TEST=YES pnpm smoke:gmail
+```
+
+The script never prints access/refresh tokens or upstream error bodies. A successful OAuth refresh is not the same as a successful Gmail send; report them separately.
 
 ## Browser variables allowed
 
