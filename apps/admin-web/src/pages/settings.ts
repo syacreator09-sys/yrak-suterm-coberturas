@@ -15,9 +15,12 @@ export async function renderSettings(ctx: PageContext): Promise<void> {
       api.get<ListResponse<Row>>('/v1/config/requirements').then((x) => x.items),
       api.get<ListResponse<Row>>('/v1/config/users').then((x) => x.items),
     ]);
+    const provisionableRoles = ctx.session.user.role === 'ADMIN'
+      ? ['ADMIN','HR','SUPERVISOR','COMMITTEE','OPERATOR','EMPLOYEE','AUDITOR']
+      : ['HR','SUPERVISOR','COMMITTEE','OPERATOR','EMPLOYEE'];
 
     ctx.root.innerHTML = `<div class="page-stack">
-      ${renderAlert('Los cambios de configuración afectan qué transiciones, requisitos y usuarios puede usar el sistema. La API valida scope y reglas; el Dashboard no puede omitir esas validaciones.', 'warning')}
+      ${renderAlert('Los cambios de configuración afectan qué transiciones, requisitos y usuarios puede usar el sistema. La API valida scope, integridad y escalación de privilegios; el Dashboard no puede omitir esas validaciones.', 'warning')}
       <section class="page-grid">
         <article class="panel span-4"><h2>Crear grupo</h2><form id="settings-group-form">
           ${renderField('Nombre', '<input name="name" required>')}
@@ -46,16 +49,16 @@ export async function renderSettings(ctx: PageContext): Promise<void> {
         <article class="panel span-4"><h2>Crear usuario</h2><form id="settings-user-form">
           ${renderField('Email', '<input name="email" type="email" required>')}
           ${renderField('Nombre visible', '<input name="displayName" required>')}
-          ${renderField('Rol', '<select name="role"><option>ADMIN</option><option>HR</option><option>SUPERVISOR</option><option>COMMITTEE</option><option>OPERATOR</option><option>EMPLOYEE</option><option>AUDITOR</option></select>')}
-          ${renderField('Employee ID', '<input name="employeeId">')}
-          ${renderField('Group IDs', '<input name="groupIds" placeholder="id1,id2">', 'Separados por coma. La API valida acceso a cada grupo.')}
+          ${renderField('Rol', `<select name="role" id="settings-user-role">${provisionableRoles.map((role) => `<option>${role}</option>`).join('')}</select>`)}
+          ${renderField('Employee ID', '<input name="employeeId" id="settings-user-employee-id">', 'Obligatorio cuando el rol es EMPLOYEE. La API verifica que pertenezca a la organización.')}
+          ${renderField('Group IDs', '<input name="groupIds" placeholder="id1,id2">', 'Separados por coma. Se eliminan duplicados y la API valida cada grupo.')}
           <button class="primary" type="submit">Crear usuario</button>
         </form></article>
         <article class="panel span-4"><h2>Crear pool de rotación</h2><form id="settings-pool-form">
           ${renderField('Grupo', `<select name="groupId" required>${optionsHtml(groups)}</select>`)}
           ${renderField('Source Level ID', '<input name="sourceLevelId" required>')}
           ${renderField('Target Level ID', '<input name="targetLevelId" required>')}
-          ${renderField('Employee IDs', '<textarea name="employeeIds" placeholder="id1,id2,id3" required></textarea>', 'Todos deben pertenecer al grupo y nivel origen.')}
+          ${renderField('Employee IDs', '<textarea name="employeeIds" placeholder="id1,id2,id3" required></textarea>', 'Todos deben pertenecer al grupo y nivel origen; no se admiten duplicados.')}
           <button class="primary" type="submit">Crear pool</button>
         </form></article>
       </section>
@@ -65,6 +68,15 @@ export async function renderSettings(ctx: PageContext): Promise<void> {
         <article class="panel span-12"><h2>Usuarios</h2>${renderTable(users, [{ key: 'id', label: 'ID' }, { key: 'email', label: 'Email' }, { key: 'display_name', label: 'Nombre' }, { key: 'role', label: 'Rol' }, { key: 'employee_id', label: 'Employee ID' }, { key: 'active', label: 'Activo' }])}</article>
       </section>
     </div>`;
+
+    const roleSelect = ctx.root.querySelector<HTMLSelectElement>('#settings-user-role');
+    const employeeIdInput = ctx.root.querySelector<HTMLInputElement>('#settings-user-employee-id');
+    const syncEmployeeRequirement = () => {
+      if (!roleSelect || !employeeIdInput) return;
+      employeeIdInput.required = roleSelect.value === 'EMPLOYEE';
+    };
+    roleSelect?.addEventListener('change', syncEmployeeRequirement);
+    syncEmployeeRequirement();
 
     bindJsonForm(ctx, '#settings-group-form', async (fd) => api.post('/v1/config/groups', {
       name: String(fd.get('name') ?? '').trim(),
