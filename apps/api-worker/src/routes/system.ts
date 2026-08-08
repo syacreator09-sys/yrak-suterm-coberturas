@@ -45,14 +45,44 @@ systemRoutes.get('/integrations', (c) => {
   const compatibleId = c.env.AI_COMPAT_PROVIDER_ID?.trim().toLowerCase() ?? '';
   const compatibleReady = Boolean(c.env.AI_COMPAT_BASE_URL && c.env.AI_COMPAT_TEXT_MODEL);
   const integrations = [
-    { id: 'cloudflare', configured: Boolean(c.env.DB), detail: 'D1 / Workers bindings' },
-    { id: 'supabase', configured: Boolean(c.env.SUPABASE_URL), detail: 'Postgres / pgvector' },
-    { id: 'upstash', configured: Boolean(c.env.UPSTASH_REDIS_REST_URL), detail: 'Redis REST' },
-    { id: 'modal', configured: Boolean(c.env.MODAL_ENDPOINT_URL), detail: 'GPU endpoint' },
-    { id: 'nvidia', configured: compatibleReady && compatibleId.includes('nvidia') && Boolean(c.env.AI_COMPAT_API_KEY), detail: 'OpenAI-compatible provider' },
-    { id: 'huggingface', configured: Boolean(c.env.HUGGINGFACE_TOKEN), detail: 'Model registry token' },
-    { id: 'ollama', configured: compatibleReady && compatibleId.includes('ollama'), detail: 'Local OpenAI-compatible endpoint' },
-    { id: 'gmail', configured: Boolean(c.env.GMAIL_TEST_ADDRESS), detail: 'Test mailbox identity' },
+    { id: 'cloudflare', implemented: true, configured: Boolean(c.env.DB), detail: 'D1 / Workers bindings' },
+    {
+      id: 'supabase',
+      implemented: false,
+      configured: false,
+      declared: Boolean(c.env.SUPABASE_URL),
+      detail: c.env.SUPABASE_URL ? 'Credencial/URL detectada; adapter pgvector pendiente' : 'Adapter pgvector pendiente',
+    },
+    {
+      id: 'upstash',
+      implemented: false,
+      configured: false,
+      declared: Boolean(c.env.UPSTASH_REDIS_REST_URL),
+      detail: c.env.UPSTASH_REDIS_REST_URL ? 'URL detectada; adapter de cache pendiente' : 'Adapter de cache opcional pendiente',
+    },
+    {
+      id: 'modal',
+      implemented: false,
+      configured: false,
+      declared: Boolean(c.env.MODAL_ENDPOINT_URL),
+      detail: c.env.MODAL_ENDPOINT_URL ? 'Endpoint detectado; contrato/job adapter pendiente' : 'Adapter de compute pendiente',
+    },
+    { id: 'nvidia', implemented: true, configured: compatibleReady && compatibleId.includes('nvidia') && Boolean(c.env.AI_COMPAT_API_KEY), detail: 'OpenAI-compatible provider' },
+    {
+      id: 'huggingface',
+      implemented: false,
+      configured: false,
+      declared: Boolean(c.env.HUGGINGFACE_TOKEN),
+      detail: c.env.HUGGINGFACE_TOKEN ? 'Token detectado; adapter/model workflow pendiente' : 'Adapter/model workflow pendiente',
+    },
+    { id: 'ollama', implemented: true, configured: compatibleReady && compatibleId.includes('ollama'), detail: 'Local OpenAI-compatible endpoint' },
+    {
+      id: 'gmail',
+      implemented: false,
+      configured: false,
+      declared: Boolean(c.env.GMAIL_TEST_ADDRESS),
+      detail: c.env.GMAIL_TEST_ADDRESS ? 'Mailbox detectado; OAuth/Gmail adapter pendiente' : 'OAuth/Gmail adapter pendiente',
+    },
   ];
   return c.json({ items: integrations });
 });
