@@ -22,6 +22,7 @@
     "dev:mcp": "pnpm --filter @yrak/mcp-worker dev",
     "dev:maintenance": "pnpm --filter @yrak/maintenance-worker dev",
     "smoke:local": "node scripts/smoke-local-connections.mjs",
+    "smoke:agent": "node scripts/smoke-agent-support.mjs",
     "smoke:ai": "node scripts/smoke-ai-provider.mjs"
   },
   "devDependencies": {
