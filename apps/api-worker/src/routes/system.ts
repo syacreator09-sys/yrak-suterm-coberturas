@@ -40,27 +40,44 @@ systemRoutes.get('/integrations', (c) => {
   return c.json({ items: integrations });
 });
 
+function configuredAi(c: Parameters<(typeof systemRoutes)['get']>[1] extends never ? never : any) {
+  const provider = c.env.AI_PROVIDER ?? 'workers-ai';
+  const model = provider === 'compatible'
+    ? c.env.AI_COMPAT_TEXT_MODEL
+    : provider === 'openai'
+      ? c.env.OPENAI_TEXT_MODEL
+      : provider === 'anthropic'
+        ? c.env.ANTHROPIC_TEXT_MODEL
+        : c.env.WORKERS_AI_TEXT_MODEL;
+  return { provider, model: model ?? null };
+}
+
 systemRoutes.post('/ai-smoke-test', requireRoles('ADMIN', 'HR'), async (c) => {
   if (c.env.APP_ENV === 'production') return c.json({ error: 'AI_SMOKE_TEST_DISABLED_IN_PRODUCTION' }, 403);
   const started = Date.now();
-  const provider = createAIProvider(c.env);
-  const text = await provider.generate({
-    system: 'Prueba técnica sintética de YRAK. No uses herramientas ni datos externos.',
-    prompt: 'Responde únicamente con YRAK_OK.',
-  });
-  const configuredProvider = c.env.AI_PROVIDER ?? 'workers-ai';
-  const model = configuredProvider === 'compatible'
-    ? c.env.AI_COMPAT_TEXT_MODEL
-    : configuredProvider === 'openai'
-      ? c.env.OPENAI_TEXT_MODEL
-      : configuredProvider === 'anthropic'
-        ? c.env.ANTHROPIC_TEXT_MODEL
-        : c.env.WORKERS_AI_TEXT_MODEL;
-  return c.json({
-    ok: text.trim().includes('YRAK_OK'),
-    provider: configuredProvider,
-    model: model ?? null,
-    latencyMs: Date.now() - started,
-    responseChars: text.length,
-  });
+  const configured = configuredAi(c);
+  try {
+    const provider = createAIProvider(c.env);
+    const text = await provider.generate({
+      system: 'Prueba técnica sintética de YRAK. No uses herramientas ni datos externos.',
+      prompt: 'Responde únicamente con YRAK_OK.',
+    });
+    return c.json({
+      ok: text.trim().includes('YRAK_OK'),
+      provider: configured.provider,
+      model: configured.model,
+      latencyMs: Date.now() - started,
+      responseChars: text.length,
+    });
+  } catch (error) {
+    console.error('AI_SMOKE_TEST_FAILED', error instanceof Error ? error.name : 'UNKNOWN_ERROR');
+    return c.json({
+      ok: false,
+      error: 'AI_SMOKE_TEST_FAILED',
+      provider: configured.provider,
+      model: configured.model,
+      latencyMs: Date.now() - started,
+      responseChars: 0,
+    }, 503);
+  }
 });
