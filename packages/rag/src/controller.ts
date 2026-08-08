@@ -19,8 +19,8 @@ function filterFor(access: RagAccessContext): RagRetrievalFilter {
 
 export function assertChunkAuthorized(chunk: RetrievedChunk, access: RagAccessContext): void {
   if (chunk.organizationId !== access.organizationId) throw new RagAuthorizationBoundaryError();
-  if (!access.organizationWide && chunk.groupId && !access.allowedGroupIds.includes(chunk.groupId)) {
-    throw new RagAuthorizationBoundaryError();
+  if (!access.organizationWide) {
+    if (!chunk.groupId || !access.allowedGroupIds.includes(chunk.groupId)) throw new RagAuthorizationBoundaryError();
   }
 }
 
