@@ -82,12 +82,12 @@ paths:
       summary: Estado básico del runtime sin secretos
       responses:
         '200':
-          description: Estado de D1 y bindings principales
+          description: Estado de D1, bindings principales y proveedor/modelo de IA activos
           content:
             application/json:
               schema:
                 type: object
-                required: [service, environment, database, r2, workersAi, queue, workflow, email]
+                required: [service, environment, database, r2, workersAi, queue, workflow, email, aiProvider, aiModel]
                 properties:
                   service: { type: string }
                   environment: { type: string, enum: [development, staging, production] }
@@ -97,6 +97,12 @@ paths:
                   queue: { $ref: '#/components/schemas/BindingStatus' }
                   workflow: { $ref: '#/components/schemas/BindingStatus' }
                   email: { $ref: '#/components/schemas/BindingStatus' }
+                  aiProvider:
+                    type: string
+                    description: ID público/no secreto del proveedor activo
+                  aiModel:
+                    type: [string, 'null']
+                    description: ID del modelo activo; nunca contiene credenciales
   /v1/system/integrations:
     get:
       operationId: getControlCenterIntegrations
