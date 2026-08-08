@@ -18,6 +18,8 @@
     "bootstrap:local": "bash scripts/bootstrap-local.sh",
     "seed:local": "node scripts/seed-local.mjs",
     "render:rag-schema": "node scripts/render-supabase-rag-schema.mjs",
+    "render:cloudflare-staging": "node scripts/render-cloudflare-staging-config.mjs",
+    "preflight:staging": "node scripts/staging-preflight.mjs",
     "dev:api": "pnpm --filter @yrak/api-worker dev",
     "dev:admin": "pnpm --filter @yrak/admin-web dev",
     "dev:agents": "pnpm --filter @yrak/agent-worker dev",
