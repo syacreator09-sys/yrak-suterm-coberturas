@@ -18,7 +18,7 @@
     "bootstrap:local": "bash scripts/bootstrap-local.sh",
     "seed:local": "node scripts/seed-local.mjs",
     "render:rag-schema": "node scripts/render-supabase-rag-schema.mjs",
-    "render:cloudflare-staging": "node scripts/render-cloudflare-staging-config.mjs",
+    "render:cloudflare-staging": "node scripts/render-staging-configs.mjs",
     "preflight:staging": "node scripts/staging-preflight.mjs",
     "staging:bootstrap:on": "node scripts/set-staging-bootstrap.mjs enable",
     "staging:bootstrap:off": "node scripts/set-staging-bootstrap.mjs disable",
