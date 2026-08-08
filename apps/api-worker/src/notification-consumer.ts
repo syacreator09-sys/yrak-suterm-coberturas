@@ -22,7 +22,7 @@ export async function processNotification(env: AppEnv, notificationId: string): 
   if (!env.EMAIL || !env.EMAIL_FROM) throw new Error('EMAIL_NOT_CONFIGURED');
 
   const claim = await env.DB.prepare(`UPDATE notifications
-    SET status='PROCESSING',attempts=attempts+1,last_error=NULL
+    SET status='PROCESSING',attempts=attempts+1,last_error=NULL,processing_started_at=datetime('now')
     WHERE id=? AND status IN('PENDING','FAILED')`)
     .bind(row.id)
     .run();
@@ -38,7 +38,7 @@ export async function processNotification(env: AppEnv, notificationId: string): 
       text: rendered.text,
     });
     await env.DB.prepare(`UPDATE notifications
-      SET status='SENT',sent_at=datetime('now'),last_error=NULL
+      SET status='SENT',sent_at=datetime('now'),last_error=NULL,processing_started_at=NULL
       WHERE id=? AND status='PROCESSING'`)
       .bind(row.id)
       .run();
@@ -46,7 +46,7 @@ export async function processNotification(env: AppEnv, notificationId: string): 
     const failureCode = safeFailureCode(error);
     console.error('NOTIFICATION_SEND_FAILED', row.id, failureCode);
     await env.DB.prepare(`UPDATE notifications
-      SET status='FAILED',last_error=?
+      SET status='FAILED',last_error=?,processing_started_at=NULL
       WHERE id=? AND status='PROCESSING'`)
       .bind(failureCode, row.id)
       .run();
