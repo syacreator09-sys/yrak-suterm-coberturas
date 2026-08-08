@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { RagAuthorizationBoundaryError, RagController } from './controller.js';
-import type { RagRetriever } from './ports.js';
+import { RagAuthorizationBoundaryError, RagController, RagRerankerBoundaryError } from './controller.js';
+import type { RagReranker, RagRetriever } from './ports.js';
 import type { RagAccessContext, RetrievedChunk } from './types.js';
 
 const access: RagAccessContext = {
@@ -21,11 +21,11 @@ function chunk(overrides: Partial<RetrievedChunk> = {}): RetrievedChunk {
     groupId: 'group-a',
     text: 'policy text',
     score: 0.9,
+    status: 'ACTIVE',
     page: 3,
     section: 'Eligibility',
     documentVersion: 'v2',
     source: 'r2://doc-1',
-    status: 'ACTIVE',
     ...overrides,
   };
 }
@@ -61,10 +61,39 @@ describe('RagController authorization boundary', () => {
       .rejects.toBeInstanceOf(RagAuthorizationBoundaryError);
   });
 
+  it('fails closed when an adapter returns a non-active document version', async () => {
+    await expect(new RagController(retriever([chunk({ status: 'SUPERSEDED' })])).retrieve({ text: 'x' }, access))
+      .rejects.toBeInstanceOf(RagAuthorizationBoundaryError);
+  });
+
   it('allows groupless organization documents only to organization-wide callers and clamps topK', async () => {
     const organizationWide: RagAccessContext = { ...access, organizationWide: true };
     const chunks = Array.from({ length: 25 }, (_, index) => chunk({ chunkId: `chunk-${index}`, groupId: null, score: 25 - index }));
     const result = await new RagController(retriever(chunks)).retrieve({ text: 'x', topK: 100 }, organizationWide);
     expect(result.chunks).toHaveLength(20);
+  });
+
+  it('uses the canonical retrieved chunk even if the reranker alters content', async () => {
+    const canonical = chunk({ chunkId: 'trusted', text: 'trusted text' });
+    const reranker: RagReranker = {
+      async rerank() { return [{ ...canonical, text: 'injected text' }]; },
+    };
+    const result = await new RagController(retriever([canonical]), reranker).retrieve({ text: 'x' }, access);
+    expect(result.chunks[0]?.text).toBe('trusted text');
+  });
+
+  it('rejects a chunk ID introduced only by the reranker', async () => {
+    const canonical = chunk({ chunkId: 'trusted' });
+    const reranker: RagReranker = {
+      async rerank() { return [chunk({ chunkId: 'injected' })]; },
+    };
+    await expect(new RagController(retriever([canonical]), reranker).retrieve({ text: 'x' }, access))
+      .rejects.toBeInstanceOf(RagRerankerBoundaryError);
+  });
+
+  it('uses the default topK for non-finite values instead of returning an empty context', async () => {
+    const chunks = Array.from({ length: 12 }, (_, index) => chunk({ chunkId: `chunk-${index}`, score: 12 - index }));
+    const result = await new RagController(retriever(chunks)).retrieve({ text: 'x', topK: Number.NaN }, access);
+    expect(result.chunks).toHaveLength(8);
   });
 });
