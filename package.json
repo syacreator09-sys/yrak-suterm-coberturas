@@ -18,7 +18,7 @@
     "bootstrap:local": "bash scripts/bootstrap-local.sh",
     "seed:local": "node scripts/seed-local.mjs",
     "render:rag-schema": "node scripts/render-supabase-rag-schema.mjs",
-    "render:cloudflare-staging": "node scripts/render-staging-configs.mjs",
+    "render:cloudflare-staging": "node scripts/render-cloudflare-staging-config.mjs",
     "preflight:staging": "node scripts/staging-preflight.mjs",
     "dev:api": "pnpm --filter @yrak/api-worker dev",
     "dev:admin": "pnpm --filter @yrak/admin-web dev",
@@ -28,6 +28,7 @@
     "smoke:local": "node scripts/smoke-local-connections.mjs",
     "smoke:agent": "node scripts/smoke-agent-support.mjs",
     "smoke:rag": "node scripts/smoke-rag.mjs",
+    "smoke:gmail": "node scripts/smoke-gmail.mjs",
     "smoke:ai": "node scripts/smoke-ai-provider.mjs"
   },
   "devDependencies": {
