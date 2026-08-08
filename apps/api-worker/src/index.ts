@@ -66,7 +66,10 @@ app.route('/v1/audit', auditRoutes);
 
 app.onError((error, c) => {
   const publicError = toPublicError(error);
-  console.error(publicError.unexpected ? 'UNEXPECTED_API_ERROR' : publicError.code, error instanceof Error ? error.name : 'UNKNOWN_ERROR');
+  console.error(
+    publicError.unexpected ? 'UNEXPECTED_API_ERROR' : publicError.code,
+    error instanceof Error ? error.name : 'UNKNOWN_ERROR',
+  );
   return c.json({ error: publicError.code }, publicError.status);
 });
 
@@ -81,26 +84,6 @@ const handler: ExportedHandler<AppEnv> = {
         message.retry();
       }
     }
-  },
-  async scheduled(_event, env) {
-    await env.DB.prepare(`UPDATE employee_requirements
-      SET status='EXPIRED',version=version+1,updated_at=datetime('now')
-      WHERE status='COMPLIANT' AND valid_until IS NOT NULL AND valid_until<date('now')`).run();
-    await env.DB.prepare(`UPDATE rotation_queue_entries
-      SET status='AVAILABLE',version=version+1
-      WHERE status='RESERVED' AND NOT EXISTS(
-        SELECT 1 FROM temporary_assignments a
-        JOIN rotation_pools p ON p.id=rotation_queue_entries.pool_id
-        JOIN coverage_cases c ON c.id=a.coverage_case_id
-        WHERE a.employee_id=rotation_queue_entries.employee_id
-          AND c.group_id=p.group_id
-          AND a.base_level_id=p.source_level_id
-          AND a.target_level_id=p.target_level_id
-          AND a.status IN('PROPOSED','APPROVED','SCHEDULED','ACTIVE')
-      )`).run();
-    const failed = await env.DB.prepare(`SELECT id FROM notifications
-      WHERE status='FAILED' AND attempts<5 ORDER BY created_at LIMIT 100`).all<{ id: string }>();
-    for (const row of failed.results ?? []) await env.NOTIFICATIONS_QUEUE?.send({ notificationId: row.id });
   },
   async email(message, env) {
     await processInboundEmail(message, env);
