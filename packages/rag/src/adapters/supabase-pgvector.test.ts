@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { EmbeddingProvider } from '../ports.js';
-import { RagAdapterHttpError } from './openai-compatible-embeddings.js';
 import { normalizeSupabaseUrl, SupabasePgvectorRetriever } from './supabase-pgvector.js';
 
 const embeddings: EmbeddingProvider = {
@@ -106,7 +105,7 @@ describe('Supabase pgvector retriever', () => {
     await expect(retriever.retrieve(
       { text: 'x' },
       { organizationId: 'org-1', allowedGroupIds: [], organizationWide: true, activeOnly: true },
-    )).rejects.toMatchObject<RagAdapterHttpError>({ adapter: 'supabase_rag', status: 401 });
+    )).rejects.toMatchObject({ name: 'RagAdapterHttpError', adapter: 'supabase_rag', status: 401 });
   });
 
   it('rejects malformed RPC rows', async () => {
