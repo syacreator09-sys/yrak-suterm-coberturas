@@ -20,6 +20,8 @@
     "render:rag-schema": "node scripts/render-supabase-rag-schema.mjs",
     "render:cloudflare-staging": "node scripts/render-cloudflare-staging-config.mjs",
     "preflight:staging": "node scripts/staging-preflight.mjs",
+    "staging:bootstrap:on": "node scripts/set-staging-bootstrap.mjs enable",
+    "staging:bootstrap:off": "node scripts/set-staging-bootstrap.mjs disable",
     "dev:api": "pnpm --filter @yrak/api-worker dev",
     "dev:admin": "pnpm --filter @yrak/admin-web dev",
     "dev:agents": "pnpm --filter @yrak/agent-worker dev",
