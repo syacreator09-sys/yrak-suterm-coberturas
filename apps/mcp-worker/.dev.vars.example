@@ -1,0 +1,7 @@
+# Copiar a apps/mcp-worker/.dev.vars. El archivo real está ignorado por Git.
+
+# Bearer token requerido por el MCP read-only.
+MCP_API_TOKEN=local-mcp-change-me
+
+# Debe coincidir con una organización sintética existente en D1 local.
+MCP_ORGANIZATION_ID=REPLACE_WITH_LOCAL_ORGANIZATION_ID
