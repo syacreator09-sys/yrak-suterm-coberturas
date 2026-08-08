@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RagAdapterHttpError, normalizeProviderBaseUrl, OpenAICompatibleEmbeddingProvider } from './openai-compatible-embeddings.js';
+import { normalizeProviderBaseUrl, OpenAICompatibleEmbeddingProvider } from './openai-compatible-embeddings.js';
 
 describe('OpenAI-compatible embedding adapter', () => {
   it('allows HTTPS providers and local HTTP only', () => {
