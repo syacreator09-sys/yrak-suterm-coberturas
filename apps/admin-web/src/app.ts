@@ -66,7 +66,12 @@ export async function startApp(): Promise<void> {
   try {
     const session = await loadSession();
     if (session.user.role === 'EMPLOYEE') {
-      window.location.assign(employeePortalUrl());
+      const portalUrl = employeePortalUrl();
+      if (!portalUrl) {
+        root.innerHTML = `<main class="main-view"><section class="panel"><h1>Portal del trabajador no configurado</h1>${renderAlert('Configura VITE_EMPLOYEE_PORTAL_URL para este entorno antes de habilitar acceso de trabajadores.', 'warning')}</section></main>`;
+        return;
+      }
+      window.location.assign(portalUrl);
       return;
     }
 
