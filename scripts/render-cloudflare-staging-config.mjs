@@ -19,7 +19,7 @@ const values = {
   organizationId: required('YRAK_ORGANIZATION_ID'),
   accessTeamDomain: required('ACCESS_TEAM_DOMAIN'),
   accessAudience: required('ACCESS_AUD'),
-  emailFrom: process.env.EMAIL_FROM?.trim() || 'REPLACE_WITH_VERIFIED_SENDER',
+  emailFrom: required('EMAIL_FROM'),
 };
 
 if (!/^[0-9a-f-]{20,}$/i.test(values.d1)) {
@@ -32,6 +32,10 @@ if (!values.accessTeamDomain.endsWith('.cloudflareaccess.com')) {
 }
 if (values.organizationId.startsWith('REPLACE_')) {
   console.error('YRAK_ORGANIZATION_ID must be a real staging organization id.');
+  process.exit(2);
+}
+if (!values.emailFrom.includes('@') || values.emailFrom.startsWith('REPLACE_')) {
+  console.error('EMAIL_FROM must be the verified staging sender address.');
   process.exit(2);
 }
 
