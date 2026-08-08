@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { AppBindings, AppEnv } from '../env.js';
 import { requireRoles } from '../middleware.js';
 import { createAIProvider } from '../services/ai-service.js';
+import { ragConfigurationState } from '../services/rag-service.js';
 
 export const systemRoutes = new Hono<AppBindings>();
 systemRoutes.use('*', requireRoles('ADMIN', 'HR', 'AUDITOR'));
@@ -44,14 +45,21 @@ systemRoutes.get('/health', async (c) => {
 systemRoutes.get('/integrations', (c) => {
   const compatibleId = c.env.AI_COMPAT_PROVIDER_ID?.trim().toLowerCase() ?? '';
   const compatibleReady = Boolean(c.env.AI_COMPAT_BASE_URL && c.env.AI_COMPAT_TEXT_MODEL);
+  const rag = ragConfigurationState(c.env);
+  const supabaseDeclared = Boolean(c.env.SUPABASE_URL || c.env.SUPABASE_SECRET_KEY);
+  const embeddingDeclared = Boolean(c.env.RAG_EMBEDDING_BASE_URL || c.env.RAG_EMBEDDING_MODEL || c.env.RAG_EMBEDDING_API_KEY);
   const integrations = [
     { id: 'cloudflare', implemented: true, configured: Boolean(c.env.DB), detail: 'D1 / Workers bindings' },
     {
       id: 'supabase',
-      implemented: false,
-      configured: false,
-      declared: Boolean(c.env.SUPABASE_URL),
-      detail: c.env.SUPABASE_URL ? 'Credencial/URL detectada; adapter pgvector pendiente' : 'Adapter pgvector pendiente',
+      implemented: true,
+      configured: rag.supabase && rag.embeddings,
+      declared: supabaseDeclared || embeddingDeclared,
+      detail: rag.supabase && rag.embeddings
+        ? 'Runtime pgvector + embeddings configurado; falta/depende de smoke de esquema y consulta'
+        : supabaseDeclared || embeddingDeclared
+          ? 'Configuración RAG parcial: requiere Supabase URL + secret key + embedding endpoint/model'
+          : 'Adapter pgvector implementado; credenciales/runtime no configurados',
     },
     {
       id: 'upstash',
