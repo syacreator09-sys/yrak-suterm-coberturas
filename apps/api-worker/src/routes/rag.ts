@@ -41,7 +41,7 @@ async function accessContext(c: Context<AppBindings>) {
 
 ragRoutes.post(
   '/search',
-  requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'COMMITTEE', 'AUDITOR', 'OPERATOR'),
+  requireRoles('ADMIN', 'HR', 'AUDITOR'),
   zValidator('json', querySchema),
   async (c) => {
     const user = c.get('user');
