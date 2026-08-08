@@ -43,7 +43,7 @@ export async function renderCompetitions(ctx: PageContext): Promise<void> {
       await withBusy(button, async () => {
         const caseId = String(new FormData(form).get('caseId') ?? '').trim();
         const result = await api.post(`/v1/competitions/cases/${encodeURIComponent(caseId)}/evaluate`);
-        ctx.root.querySelector<HTMLElement>('#competition-evaluate-output')!.innerHTML = `<div class="alert alert-info" style="margin-top:12px">La elegibilidad fue calculada por el backend; la UI sólo muestra el resultado.</div>${renderJson(result)}`;
+        ctx.root.querySelector<HTMLElement>('#competition-evaluate-output')!.innerHTML = `<div class="alert alert-info mt-12">La elegibilidad fue calculada por el backend; la UI sólo muestra el resultado.</div>${renderJson(result)}`;
         showToast('Elegibilidad evaluada.', 'success');
       }).catch((error) => showToast(error instanceof Error ? error.message : error, 'danger'));
     });
@@ -91,7 +91,7 @@ async function renderCompetitionDetail(ctx: PageContext, id: string, canManage: 
       { key: 'rank', label: 'Ranking' },
       { key: 'result_status', label: 'Resultado' },
     ])}
-    ${canManage ? `<form id="competition-score-form" class="form-grid" style="margin-top:16px">
+    ${canManage ? `<form id="competition-score-form" class="form-grid mt-16">
       ${renderField('Candidate ID', '<input name="candidateId" required>')}
       ${renderField('Calificación', '<input name="score" type="number" min="0" max="100" step="0.01" required>')}
       ${renderField('Motivo', '<input name="reason" value="CAPTURE" required>')}
