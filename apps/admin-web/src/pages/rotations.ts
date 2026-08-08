@@ -14,7 +14,7 @@ export async function renderRotations(ctx: PageContext): Promise<void> {
     const groups = (await api.get<ListResponse<Row>>('/v1/reference/groups')).items;
     ctx.root.innerHTML = `<div class="page-stack">
       <section class="panel"><div class="section-heading"><div><h2>Consultar cola</h2><p>Esta vista es read-only. No mueve posiciones ni selecciona trabajadores.</p></div></div>
-        <div class="form-grid" style="margin-top:14px">
+        <div class="form-grid mt-14">
           ${renderField('Grupo', `<select id="rotation-group"><option value="">Seleccione</option>${optionsHtml(groups)}</select>`)}
           ${renderField('Pool / transición', '<select id="rotation-pool" disabled><option value="">Seleccione grupo primero</option></select>')}
         </div>
