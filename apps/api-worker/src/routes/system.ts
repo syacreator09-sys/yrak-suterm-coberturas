@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppBindings } from '../env.js';
 import { requireRoles } from '../middleware.js';
+import { createAIProvider } from '../services/ai-service.js';
 
 export const systemRoutes = new Hono<AppBindings>();
 systemRoutes.use('*', requireRoles('ADMIN', 'HR', 'AUDITOR'));
@@ -37,4 +38,29 @@ systemRoutes.get('/integrations', (c) => {
     { id: 'gmail', configured: Boolean(c.env.GMAIL_TEST_ADDRESS), detail: 'Test mailbox identity' },
   ];
   return c.json({ items: integrations });
+});
+
+systemRoutes.post('/ai-smoke-test', requireRoles('ADMIN', 'HR'), async (c) => {
+  if (c.env.APP_ENV === 'production') return c.json({ error: 'AI_SMOKE_TEST_DISABLED_IN_PRODUCTION' }, 403);
+  const started = Date.now();
+  const provider = createAIProvider(c.env);
+  const text = await provider.generate({
+    system: 'Prueba técnica sintética de YRAK. No uses herramientas ni datos externos.',
+    prompt: 'Responde únicamente con YRAK_OK.',
+  });
+  const configuredProvider = c.env.AI_PROVIDER ?? 'workers-ai';
+  const model = configuredProvider === 'compatible'
+    ? c.env.AI_COMPAT_TEXT_MODEL
+    : configuredProvider === 'openai'
+      ? c.env.OPENAI_TEXT_MODEL
+      : configuredProvider === 'anthropic'
+        ? c.env.ANTHROPIC_TEXT_MODEL
+        : c.env.WORKERS_AI_TEXT_MODEL;
+  return c.json({
+    ok: text.trim().includes('YRAK_OK'),
+    provider: configuredProvider,
+    model: model ?? null,
+    latencyMs: Date.now() - started,
+    responseChars: text.length,
+  });
 });
