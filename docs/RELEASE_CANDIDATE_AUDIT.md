@@ -1,236 +1,203 @@
-# YRAK Release Candidate Audit
+# YRAK Release Candidate Audit — v2
 
-Branch audited: `ready/clone-test-connect-v1`  
-Purpose: clone/local test/staging connection candidate.  
-Production status: **NOT VERIFIED / DO NOT PROMOTE**.
+Branch audited: `ready/clone-test-connect-v2`  
+Purpose: isolated clone/local-test/staging-connection candidate.  
+Production status: **UNVERIFIED / DO NOT PROMOTE**.
 
-This document records observed code changes and unresolved gates. A finding is not closed until the corresponding executable evidence exists on the current branch head.
+This document distinguishes code hardening from observed runtime evidence. A code change is not considered operationally verified until the exact current head passes the corresponding executable gate.
 
-## Fixed in this release candidate
+## Hardening present in v2
 
-### Critical — Cloudflare Access identity was not actually verified
+### Cloudflare Access identity
 
-**Previous state:** API middleware trusted `Cf-Access-Authenticated-User-Email` directly and accepted `x-yrak-user-email` whenever `APP_ENV=development`.
+- Remote API identity comes from `Cf-Access-Jwt-Assertion`, not the email header.
+- RS256/JWKS signature plus issuer/audience/exp/nbf/email are validated.
+- Access team domain is restricted to HTTPS `*.cloudflareaccess.com`.
+- `x-yrak-user-email` is accepted only for `APP_ENV=development` on an actual loopback request URL.
+- OpenAPI documents the JWT credential.
+- JWT/loopback failure-boundary tests exist.
 
-**Fix:**
+**Still requires:** fresh API tests/build plus remote staging anti-header-spoof evidence.
 
-- remote API requests require `Cf-Access-Jwt-Assertion`;
-- RS256 signature verified against Cloudflare Access JWKS;
-- `iss`, `aud`, `exp`, `nbf` and `email` validated;
-- team domain restricted to HTTPS `*.cloudflareaccess.com`;
-- local email bypass accepted only for `APP_ENV=development` + actual loopback request URL;
-- JWT/config/JWKS failures classified into authentication vs service failures;
-- OpenAPI now documents the signed JWT as the credential, not the email header;
-- regression tests added.
+### Bootstrap boundary
 
-**Remaining evidence:** full API typecheck/test/build and remote staging anti-header-spoof smoke.
+- Bootstrap requires `BOOTSTRAP_ENABLED` + token.
+- Production bootstrap is always denied.
+- Development requires loopback.
+- Staging requires explicit temporary enable.
+- Existing organization makes bootstrap one-time.
+- `scripts/set-staging-bootstrap.mjs` enables/disables only an isolated generated staging config with explicit confirmations.
 
-### High — bootstrap endpoint needed stronger environment boundary
+**Still requires:** local seed and one-time staging bootstrap/disable/redeploy evidence.
 
-**Fix:**
+### Agent Worker / model-data minimization
 
-- explicit `BOOTSTRAP_ENABLED` switch;
-- production bootstrap is denied even if the flag is accidentally true;
-- development bootstrap requires actual loopback;
-- staging requires explicit enable + bootstrap token;
-- bootstrap is one-time because an existing organization returns conflict;
-- security headers/cross-site mutation guard cover `/bootstrap`;
-- regression tests cover local/staging/production boundaries.
+- Agent request body and session IDs are bounded.
+- `/health` and `/ready` exist.
+- Durable Object history is bounded.
+- Raw intake text/extracted payload is not retained in session history.
+- Raw audit facts are not retained in session history.
+- Common PII keys in audit previous/new JSON are redacted before model use.
+- Communication model payload excludes employee name/email/employee ID.
+- AI continues to have no labor-decision authority.
 
-**Remaining evidence:** local seed + staging bootstrap-once/disabled-after test.
+**Open policy:** final time-based retention period requires organizational approval before production.
 
-### High — Agent Worker accepted unbounded requests/session identifiers
+### MCP
 
-**Fix:**
+- Business tools are read-only.
+- Inputs are bounded and organization-scoped.
+- `/health` and `/ready` exist.
+- Bearer token is required.
+- Coverage lookup uses explicit columns instead of `SELECT *`.
+- Only allowed write is append-only `mcp_access_log`.
+- Architecture gate rejects business-table mutation SQL in MCP.
+- Project `.mcp.json` contains environment expansion, not a real secret.
 
-- request body capped at 128 KiB;
-- `Content-Length` fast rejection + actual UTF-8 byte check;
-- session IDs bounded;
-- history route uses same validation;
-- `/ready` checks configuration + D1;
-- request-guard tests added.
+**Still requires:** real Claude Code MCP handshake/tool calls on local/staging D1.
 
-### High — unnecessary model/history data retention
+### Maintenance / notifications
 
-**Fix:**
+- Maintenance Worker is the sole scheduled-maintenance owner; API no longer owns a cron.
+- Notification delivery uses a conditional atomic claim before sending.
+- Migration `0019_notification_processing_recovery.sql` adds `processing_started_at`.
+- Stale processing claims are recovered by Maintenance.
+- Provider raw error messages are not persisted into notification `last_error`.
 
-- raw Intake text/extracted payload is not stored in Durable Object history;
-- Audit history stores bounded explanation/count, not raw facts;
-- common PII keys inside audit previous/new JSON are redacted before model use;
-- Communication model input excludes employee name/email/employee ID;
-- Communication history stores draft + human-approval flag, not source facts;
-- session storage capped at 40 messages and context/history at 20.
+**Still requires:** fresh D1 migration plus real concurrency/recovery integration evidence.
 
-**Open policy:** final time-based retention/privacy period remains an organizational policy decision before production.
+### Migration history
 
-### High — MCP needed stronger read-only/runtime boundaries
+- Historical missing `0013` is documented in `migrations/sequence-exceptions.json` instead of renumbering history.
+- Migration checker fails duplicate numbers, new undocumented gaps and stale exceptions.
+- New DB changes remain forward-only.
 
-**Fix:**
+**Still requires:** apply complete chain to fresh/shared local D1 and staging D1.
 
-- four business-data tools remain read-only;
-- explicit selected columns replace `SELECT *` for coverage cases;
-- bounded input IDs/entity types;
-- `/health` + `/ready` added;
-- exact bearer auth/config helper extracted and tested;
-- organization scope retained in every tool query;
-- only mutation allowed is append-only `mcp_access_log`;
-- architecture checker fails if future MCP code introduces business-table mutation SQL;
-- project `.mcp.json` uses environment expansion and contains no real secret.
+### RAG authorization/retrieval
 
-**Remaining evidence:** real MCP protocol connection from Claude Code and synthetic tool calls against local/staging D1.
+Implemented:
 
-### High — local Workers could use different D1 state
+- provider-agnostic RAG interfaces/controller;
+- fail-closed organization/group boundary;
+- active-document enforcement;
+- top-K bounds;
+- reranker cannot introduce new chunks or replace canonical retrieved text;
+- structured citations;
+- generic OpenAI-compatible embeddings adapter;
+- Supabase/PostgREST pgvector RPC retriever;
+- dimension-rendered Supabase schema template with pgvector/HNSW and service-role-only retrieval RPC;
+- server-side `/v1/rag/search` for `ADMIN/HR/AUDITOR`;
+- query audit stores SHA-256 and result metadata, not raw query text;
+- Control Center manual RAG search;
+- RAG smoke script.
 
-**Fix:** API, Agents, MCP and Maintenance dev commands plus migration script share:
+D1 remains canonical for labor state. Supabase is a knowledge sidecar only.
 
-```text
-.wrangler/state/yrak-local
-```
+**Still requires:** actual Supabase project/schema, matching embedding model dimensions, synthetic indexed data and live retrieval/citation smoke. Full production ingestion/OCR/chunking/reranking/evaluation pipeline remains separate work.
 
-Local ports are fixed:
+### Gmail connection smoke
 
-- API `8787`
-- Agents `8788`
-- MCP `8789`
-- Maintenance `8790`
+- OAuth refresh smoke does not print tokens or provider response bodies.
+- Sending is disabled unless `CONFIRM_GMAIL_SEND_TEST=YES`.
+- Send smoke is self-send only to `GMAIL_TEST_ADDRESS`.
+- Message content is fixed synthetic text without labor data.
 
-### High — duplicate scheduled maintenance ownership
+**Still requires:** dedicated test mailbox/client/refresh token and live smoke. This is not yet the production YRAK Gmail notification adapter.
 
-**Previous state:** both API Worker and Maintenance Worker contained scheduled maintenance logic, which could duplicate reconciliation/requeue work after deployment.
+### Claude Code skills/subagents
 
-**Fix:**
+Project skills cover domain guardrails, verification, Cloudflare staging, MCP read-only, AI router and RAG connectors.
 
-- API Worker no longer has a scheduled handler or cron trigger;
-- Maintenance Worker is the sole cron owner;
-- executable architecture checker enforces this ownership.
+Subagents:
 
-### High — notification queue delivery was not atomically claimed
+- `yrak-auditor` — Read/Glob/Grep only;
+- `yrak-code-reviewer` — Read/Glob/Grep only;
+- `yrak-test-runner` — command execution for evidence, no edits/deploy;
+- `yrak-cloudflare-integrator` — staging integration with normal permission prompts.
 
-**Previous state:** two at-least-once queue deliveries could both observe `PENDING/FAILED` before either marked it processing.
+All use `model: inherit`.
 
-**Fix:**
+### Clone/staging tooling
 
-- delivery uses conditional atomic `PENDING/FAILED -> PROCESSING` claim;
-- only the worker that changes one row sends;
-- migration `0019_notification_processing_recovery.sql` adds `processing_started_at`;
-- stale `PROCESSING` claims older than 10 minutes are recovered by Maintenance;
-- provider raw error messages are not persisted as `last_error`.
+Canonical branch/runbook: `ready/clone-test-connect-v2` / `docs/CLONE_TEST_CONNECT.md`.
 
-**Remaining evidence:** apply migration locally and run concurrency/recovery integration tests with real D1/queue semantics.
+Static gates include:
 
-### High — RAG needed an authorization boundary and executable retrieval path
+- environment doctor;
+- package command-reference checker;
+- migration checker;
+- tracked secret scan;
+- executable architecture-boundary checker;
+- package-specific typecheck/tests/build for Admin/API/Agents/MCP/RAG/Employee/Maintenance;
+- whole-workspace Turbo gates;
+- operational script syntax checks.
 
-**Fix:** `packages/rag` now provides provider-agnostic ports plus fail-closed controller.
+Staging uses one canonical renderer: `scripts/render-staging-configs.mjs`.
 
-Defense in depth:
+It creates ignored `wrangler.staging.local.jsonc` files only after explicit `CONFIRM_YRAK_STAGING=YES`, validates non-secret resource identifiers and keeps secrets outside generated config. `scripts/staging-preflight.mjs` checks isolation, shared D1/org/queue, Access settings, placeholders and bootstrap window before any deploy.
 
-- org/group filters passed to Retriever before retrieval;
-- returned chunks revalidated against organization/group scope;
-- group-scoped callers cannot receive groupless chunks;
-- non-active documents are rejected;
-- top-K bounded 1..20;
-- reranker cannot introduce a new chunk or replace canonical retrieved text;
-- citations retain document/chunk/page/section/version/source metadata.
+## Current blockers
 
-Runtime connection pieces now exist:
+### BLOCKER — full monorepo gate has not run on v2 in this environment
 
-- generic OpenAI-compatible `/embeddings` adapter;
-- Supabase/PostgREST pgvector RPC retriever using server-side secret key;
-- dimension-rendered Supabase pgvector/HNSW schema template;
-- `POST /v1/rag/search` restricted to Control Center RAG roles (`ADMIN/HR/AUDITOR`);
-- RAG query audit persists SHA-256, counts/IDs/scope/latency instead of raw query text;
-- Control Center manual RAG search UI;
-- `smoke:rag` for connection/citation contract.
-
-**Remaining evidence:** actual Supabase project/schema, matching embedding model dimensions, synthetic indexed data and live smoke.
-
-### Medium — integration UI could claim health from env vars alone
-
-**Fix:** configuration detection remains separate from observed health. Supabase retrieval can report runtime configured only when URL/secret + embedding endpoint/model exist; the UI still requires an actual query before treating retrieval as working. Modal, Upstash, Hugging Face and Gmail continue to report pending adapter/runtime where appropriate.
-
-### Medium — release verification did not cover all surfaces
-
-**Fix:** added/expanded:
-
-- `scripts/doctor.mjs`
-- `scripts/check-migrations.mjs`
-- `scripts/secret-scan.mjs`
-- `scripts/check-architecture-boundaries.mjs`
-- `scripts/bootstrap-local.sh`
-- `scripts/seed-local.mjs`
-- `scripts/render-supabase-rag-schema.mjs`
-- `scripts/smoke-local-connections.mjs`
-- `scripts/smoke-agent-support.mjs`
-- `scripts/smoke-rag.mjs`
-- `scripts/verify-release-candidate.sh`
-
-`pnpm verify:rc` is intended to check Admin, API, Agents, MCP, RAG core, Employee Portal, Maintenance and whole Turbo workspace plus script syntax/architecture boundaries.
-
-### Medium — project agent workflow was implicit
-
-**Fix:** project Claude Code skills/subagents cover domain guardrails, verification, Cloudflare staging, MCP, AI router, RAG, read-only audit, test execution, code review and staging integration. Subagents use `model: inherit`; no model version is hard-coded. Auditor/code-reviewer have no Bash/Edit/Write tool surface.
-
-## Open blockers before merge/staging
-
-### BLOCKER — full monorepo gate not executed in this environment
-
-Required on the cloned exact head:
+Required on an actual clone of the exact head:
 
 ```bash
 bash scripts/bootstrap-local.sh
 pnpm verify:rc
 ```
 
-Do not infer results from isolated checks or from code review.
+This ChatGPT execution environment could not clone GitHub through shell because outbound DNS/network resolution to `github.com` failed. GitHub connector edits/audits do not substitute for a local compiler/test run.
 
-### BLOCKER — `pnpm-lock.yaml` is not currently tracked
+### BLOCKER — no reviewed tracked `pnpm-lock.yaml`
 
-First install must generate it. Review dependency resolution, rerun the complete gate with the lockfile present, then commit it. Do not call the release reproducible before this is done.
+Fresh install must generate/reconcile the lockfile. Review it, rerun all gates with the lockfile present, then commit it before calling the candidate reproducible.
 
-### BLOCKER — migrations not applied to a fresh/shared local D1 yet
+### BLOCKER — local D1 chain/E2E not observed
 
-The migration checker now preserves historical gap `0013` through a versioned exception and new changes continue forward-only through `0019`. The complete migration chain still must be applied to the shared local D1 state and then to staging before any promotion claim.
+Must run migration, seed, role/scope matrix and domain E2E on a fresh shared local D1 state.
 
-### BLOCKER — external Cloudflare resources are not provisioned/verified
+### BLOCKER — external Cloudflare staging resources not provisioned/verified
 
-D1/R2/Queue/DO/Workflow/Access/Workers AI resource IDs, routes and secrets must be created/resolved from the authorized account and tested.
+Need authorized account authentication and actual staging D1/R2/Queue/DO/Workflow/Workers/Access resources plus secrets and remote health/auth smokes.
 
-### BLOCKER — RAG external connection has no observed evidence yet
+### BLOCKER — RAG external services not observed
 
-The adapters/schema/API/UI exist, but Supabase and the selected embeddings endpoint have not been supplied or called from this release candidate. Do not call RAG healthy until schema application + live `smoke:rag` passes with matching vector dimensions.
+Adapters/schema/runtime exist, but no real Supabase or embeddings endpoint has been called from this branch.
 
-### BLOCKER — ingestion/OCR/reranking pipeline is not complete
+### BLOCKER — full RAG ingestion pipeline remains incomplete
 
-Retrieval is implemented. Document ingestion, chunk creation/embedding writes, parser/OCR jobs, optional reranker adapter and quality evaluations remain separate work before a full production knowledge pipeline.
+Document ingestion/chunk writes/OCR/parser jobs, optional reranker adapter, evaluations and retention policies are not production-complete.
 
-### BLOCKER — Modal / Hugging Face / optional Upstash adapters are not implemented
+### BLOCKER — Modal / Hugging Face / optional Upstash adapters not implemented
 
-Their roles are defined but no concrete account-specific runtime contract has been chosen/tested. Do not mark them configured/healthy merely because an env var exists.
+Do not report them connected from env vars alone. A concrete job/cache/model contract plus tests is required before enabling them as runtime dependencies.
 
-### BLOCKER — Gmail OAuth adapter is not implemented
+### BLOCKER — Gmail production adapter not implemented
 
-A test mailbox alone is not a Gmail connection. OAuth/client consent/token refresh/send/read behavior must be implemented and tested before the Dashboard can report it working.
+The connection smoke exists; production OAuth token handling/send/read integration still needs an explicit adapter and tests if Gmail is selected for runtime mail.
 
-### BLOCKER — browser/E2E fidelity and role matrix
+### BLOCKER — browser/E2E/rollback evidence missing
 
-The real cloned app must be run and checked for:
+Must observe:
 
-- Admin/Supervisor/Committee/Operator/Auditor/HR/Employee permissions;
+- all seven role boundaries;
 - organization/group A/B isolation;
-- Control Center desktop/mobile render;
 - intake ownership/review;
 - 1–5 rotation;
 - 6+ competition;
-- audit/CSV/export behavior;
+- audit/export behavior;
 - Access/CSP;
-- notification recovery;
-- RAG role restriction/citations;
-- rollback/backup/restore.
+- notification claim/recovery;
+- Agents/MCP/providers/RAG as enabled;
+- desktop/mobile Control Center fidelity;
+- backup/restore and rollback.
 
-## Legal/repository decision requiring owner confirmation
+## Repository/license decision
 
-The root `LICENSE` currently grants the MIT License to the entire repository. That may be intentional, but it also permits broad use/modification/distribution/sublicensing. Do not alter license text automatically. Confirm desired licensing/ownership before public distribution or production handoff, while preserving any required third-party attributions.
+The root license must be reviewed by the owner before public distribution. Do not automatically change licensing while fixing code; preserve required third-party attributions.
 
 ## Promotion rule
 
-This branch is a **release candidate prepared for clone/testing**, not a verified release. It must not be called production-ready until every blocker above has fresh executable evidence and a final code/security review is performed on the exact promotion head.
+`ready/clone-test-connect-v2` is a **release candidate prepared for clone/testing**, not a verified release. Do not merge/promote it until every applicable blocker has fresh evidence on the exact promotion head and a final read-only security/code review is performed.
