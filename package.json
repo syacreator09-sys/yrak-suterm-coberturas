@@ -10,6 +10,11 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "prettier --write .",
+    "doctor": "node scripts/doctor.mjs",
+    "audit:migrations": "node scripts/check-migrations.mjs",
+    "scan:secrets": "node scripts/secret-scan.mjs",
+    "verify:rc": "bash scripts/verify-release-candidate.sh",
+    "bootstrap:local": "bash scripts/bootstrap-local.sh",
     "smoke:ai": "node scripts/smoke-ai-provider.mjs"
   },
   "devDependencies": {
