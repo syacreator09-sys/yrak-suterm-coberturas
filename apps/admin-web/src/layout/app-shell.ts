@@ -29,6 +29,15 @@ function envTone(environment: AppEnvironment): string {
   return environment === 'production' ? 'danger' : environment === 'staging' ? 'warning' : 'neutral';
 }
 
+function shortOrganization(id: string): string {
+  const trimmed = id.trim();
+  return trimmed.length > 12 ? `${trimmed.slice(0, 8)}…` : trimmed;
+}
+
+function normalized(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
 export function mountShell(options: {
   root: HTMLElement;
   session: AppSession;
@@ -60,7 +69,17 @@ export function mountShell(options: {
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-left"><button id="menu-toggle" class="icon-button mobile-only" aria-label="Abrir menú">☰</button><div><h1 id="page-title">Overview</h1><p id="page-subtitle">Estado operativo y del sistema</p></div></div>
-        <div class="topbar-actions"><span class="badge badge-${envTone(options.environment)}">${escapeText(options.environment.toUpperCase())}</span><span id="global-status" class="badge badge-neutral">Sin verificar</span></div>
+        <div class="topbar-search">
+          <label class="sr-only" for="quick-nav">Ir rápidamente a una sección</label>
+          <input id="quick-nav" list="quick-nav-options" type="search" autocomplete="off" placeholder="Ir a una sección…" aria-label="Ir rápidamente a una sección">
+          <datalist id="quick-nav-options">${visible.map((item) => `<option value="${escapeText(item.label)}"></option>`).join('')}</datalist>
+        </div>
+        <div class="topbar-actions">
+          <span class="badge badge-neutral" title="Organización actual">Org · ${escapeText(shortOrganization(options.session.user.organizationId))}</span>
+          <span class="badge badge-info">${escapeText(options.session.user.role)}</span>
+          <span class="badge badge-${envTone(options.environment)}">${escapeText(options.environment.toUpperCase())}</span>
+          <span id="global-status" class="badge badge-neutral">Sin verificar</span>
+        </div>
       </header>
       <main id="view" class="main-view" tabindex="-1"></main>
     </div>
@@ -75,6 +94,24 @@ export function mountShell(options: {
       options.onNavigate(button.dataset.section as AppSection);
     });
   }
+
+  const quickNav = options.root.querySelector<HTMLInputElement>('#quick-nav');
+  const navigateFromQuickSearch = () => {
+    if (!quickNav) return;
+    const query = normalized(quickNav.value);
+    if (!query) return;
+    const exact = visible.find((item) => normalized(item.label) === query);
+    const partial = exact ?? visible.find((item) => normalized(item.label).includes(query) || normalized(item.section).includes(query));
+    if (!partial) return;
+    quickNav.value = '';
+    options.onNavigate(partial.section);
+  };
+  quickNav?.addEventListener('change', navigateFromQuickSearch);
+  quickNav?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    navigateFromQuickSearch();
+  });
 
   return {
     view,
