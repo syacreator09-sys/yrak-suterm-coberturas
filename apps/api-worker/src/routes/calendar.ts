@@ -1,67 +1,8 @@
-import { Hono } from 'hono';
-import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
-import type { AppBindings } from '../env.js';
-import { assertGroupAccess, requireRoles } from '../middleware.js';
-import { AuditWriter } from '@yrak/audit';
-import { loadCalendarSettings } from '../services/calendar-settings-service.js';
-
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-export const calendarRoutes = new Hono<AppBindings>();
-
-calendarRoutes.get('/holidays', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'AUDITOR'), zValidator('query', z.object({ groupId: z.string().optional(), from: z.string().regex(DATE_ONLY).optional(), to: z.string().regex(DATE_ONLY).optional() })), async (c) => {
-  const u = c.get('user'), q = c.req.valid('query');
-  const rows = await c.env.DB.prepare(`SELECT id, group_id, holiday_date, name FROM holidays
-    WHERE organization_id=? AND (?='' OR group_id=? OR group_id IS NULL) AND (?='' OR holiday_date>=?) AND (?='' OR holiday_date<=?)
-    ORDER BY holiday_date`)
-    .bind(u.organizationId, q.groupId ?? '', q.groupId ?? '', q.from ?? '', q.from ?? '', q.to ?? '', q.to ?? '')
-    .all();
-  return c.json({ items: rows.results ?? [] });
-});
-
-calendarRoutes.post('/holidays', requireRoles('ADMIN', 'HR'), zValidator('json', z.object({ groupId: z.string().nullable().optional(), date: z.string().regex(DATE_ONLY, 'INVALID_DATE_FORMAT'), name: z.string().min(1) })), async (c) => {
-  const u = c.get('user'), i = c.req.valid('json');
-  if (i.groupId) await assertGroupAccess(c, i.groupId);
-  const id = crypto.randomUUID();
-  await c.env.DB.prepare(`INSERT INTO holidays(id,organization_id,group_id,holiday_date,name) VALUES(?,?,?,?,?)
-    ON CONFLICT(organization_id,group_id,holiday_date) DO UPDATE SET name=excluded.name`)
-    .bind(id, u.organizationId, i.groupId ?? null, i.date, i.name).run();
-  await new AuditWriter(c.env.DB).append({ organizationId: u.organizationId, actorId: u.id, actorRole: u.role, entityType: 'HOLIDAY', entityId: id, action: 'CREATED', newValue: i, correlationId: c.get('correlationId') });
-  return c.json({ id, ...i }, 201);
-});
-
-calendarRoutes.delete('/holidays/:holidayId', requireRoles('ADMIN', 'HR'), async (c) => {
-  const u = c.get('user');
-  const row = await c.env.DB.prepare(`SELECT id, group_id, holiday_date, name FROM holidays WHERE id=? AND organization_id=?`).bind(c.req.param('holidayId'), u.organizationId).first<{ id: string; group_id: string | null; holiday_date: string; name: string }>();
-  if (!row) return c.json({ error: 'HOLIDAY_NOT_FOUND' }, 404);
-  await c.env.DB.prepare(`DELETE FROM holidays WHERE id=?`).bind(row.id).run();
-  await new AuditWriter(c.env.DB).append({ organizationId: u.organizationId, actorId: u.id, actorRole: u.role, entityType: 'HOLIDAY', entityId: row.id, action: 'DELETED', previousValue: row, correlationId: c.get('correlationId') });
-  return c.json({ deleted: true });
-});
-
-calendarRoutes.get('/group-shifts', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'AUDITOR'), zValidator('query', z.object({ groupId: z.string(), from: z.string().regex(DATE_ONLY), to: z.string().regex(DATE_ONLY) })), async (c) => {
-  const q = c.req.valid('query');
-  await assertGroupAccess(c, q.groupId);
-  const rows = await c.env.DB.prepare(`SELECT id, shift_date, scheduled, shift_code FROM group_shift_dates WHERE group_id=? AND shift_date BETWEEN ? AND ? ORDER BY shift_date`).bind(q.groupId, q.from, q.to).all();
-  return c.json({ items: rows.results ?? [] });
-});
-
-calendarRoutes.get('/settings/:groupId', requireRoles('ADMIN', 'HR', 'SUPERVISOR', 'AUDITOR'), async (c) => {
-  const u = c.get('user'), groupId = c.req.param('groupId')!;
-  await assertGroupAccess(c, groupId);
-  const settings = await loadCalendarSettings(c.env, u.organizationId, groupId, new Date().toISOString().slice(0, 10));
-  return c.json({ id: settings.id, config: settings.config });
-});
-
-calendarRoutes.put('/settings/:groupId', requireRoles('ADMIN', 'HR'), zValidator('json', z.object({ workingWeekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7), effectiveFrom: z.string().regex(DATE_ONLY) })), async (c) => {
-  const u = c.get('user'), i = c.req.valid('json'), groupId = c.req.param('groupId');
-  await assertGroupAccess(c, groupId);
-  const latest = await c.env.DB.prepare(`SELECT COALESCE(MAX(version),0) version FROM group_policies WHERE organization_id=? AND group_id=? AND policy_key='CALENDAR_SETTINGS'`).bind(u.organizationId, groupId).first<{ version: number }>();
-  const config = { workingWeekdays: [...new Set(i.workingWeekdays)].sort() };
-  const id = crypto.randomUUID();
-  await c.env.DB.prepare(`INSERT INTO group_policies(id,organization_id,group_id,policy_key,version,config_json,effective_from,created_by) VALUES(?,?,?,'CALENDAR_SETTINGS',?,?,?,?)`)
-    .bind(id, u.organizationId, groupId, (latest?.version ?? 0) + 1, JSON.stringify(config), i.effectiveFrom, u.id).run();
-  await new AuditWriter(c.env.DB).append({ organizationId: u.organizationId, actorId: u.id, actorRole: u.role, entityType: 'GROUP_POLICY', entityId: id, action: 'CREATED', newValue: { policyKey: 'CALENDAR_SETTINGS', ...config }, ruleApplied: 'CALENDAR_SETTINGS', correlationId: c.get('correlationId') });
-  return c.json({ id, version: (latest?.version ?? 0) + 1, config }, 201);
-});
+import { Hono } from 'hono';import { z } from 'zod';import { zValidator } from '@hono/zod-validator';import type { AppBindings } from '../env.js';import { assertGroupAccess,requireRoles } from '../middleware.js';import { AuditWriter } from '@yrak/audit';import { loadCalendarSettings } from '../services/calendar-settings-service.js';
+const DATE_ONLY=/^\d{4}-\d{2}-\d{2}$/;export const calendarRoutes=new Hono<AppBindings>();
+calendarRoutes.get('/holidays',requireRoles('ADMIN','HR','SUPERVISOR','AUDITOR'),zValidator('query',z.object({groupId:z.string().optional(),from:z.string().regex(DATE_ONLY).optional(),to:z.string().regex(DATE_ONLY).optional()})),async c=>{const u=c.get('user'),q=c.req.valid('query');const rows=await c.env.DB.prepare(`SELECT id,group_id,holiday_date,name FROM holidays WHERE organization_id=? AND (?='' OR group_id=? OR group_id IS NULL) AND (?='' OR holiday_date>=?) AND (?='' OR holiday_date<=?) ORDER BY holiday_date`).bind(u.organizationId,q.groupId??'',q.groupId??'',q.from??'',q.from??'',q.to??'',q.to??'').all();return c.json({items:rows.results??[]});});
+calendarRoutes.post('/holidays',requireRoles('ADMIN','HR'),zValidator('json',z.object({groupId:z.string().nullable().optional(),date:z.string().regex(DATE_ONLY,'INVALID_DATE_FORMAT'),name:z.string().min(1)})),async c=>{const u=c.get('user'),i=c.req.valid('json');if(i.groupId)await assertGroupAccess(c,i.groupId);const id=crypto.randomUUID();await c.env.DB.prepare(`INSERT INTO holidays(id,organization_id,group_id,holiday_date,name) VALUES(?,?,?,?,?) ON CONFLICT(organization_id,group_id,holiday_date) DO UPDATE SET name=excluded.name`).bind(id,u.organizationId,i.groupId??null,i.date,i.name).run();await new AuditWriter(c.env.DB).append({organizationId:u.organizationId,actorId:u.id,actorRole:u.role,entityType:'HOLIDAY',entityId:id,action:'CREATED',newValue:i,correlationId:c.get('correlationId')});return c.json({id,...i},201);});
+calendarRoutes.delete('/holidays/:holidayId',requireRoles('ADMIN','HR'),async c=>{const u=c.get('user');const row=await c.env.DB.prepare(`SELECT id,group_id,holiday_date,name FROM holidays WHERE id=? AND organization_id=?`).bind(c.req.param('holidayId'),u.organizationId).first<{id:string;group_id:string|null;holiday_date:string;name:string}>();if(!row)return c.json({error:'HOLIDAY_NOT_FOUND'},404);await c.env.DB.prepare(`DELETE FROM holidays WHERE id=?`).bind(row.id).run();await new AuditWriter(c.env.DB).append({organizationId:u.organizationId,actorId:u.id,actorRole:u.role,entityType:'HOLIDAY',entityId:row.id,action:'DELETED',previousValue:row,correlationId:c.get('correlationId')});return c.json({deleted:true});});
+calendarRoutes.get('/group-shifts',requireRoles('ADMIN','HR','SUPERVISOR','AUDITOR'),zValidator('query',z.object({groupId:z.string(),from:z.string().regex(DATE_ONLY),to:z.string().regex(DATE_ONLY)})),async c=>{const q=c.req.valid('query');await assertGroupAccess(c,q.groupId);const rows=await c.env.DB.prepare(`SELECT id,shift_date,scheduled,shift_code FROM group_shift_dates WHERE group_id=? AND shift_date BETWEEN ? AND ? ORDER BY shift_date`).bind(q.groupId,q.from,q.to).all();return c.json({items:rows.results??[]});});
+calendarRoutes.get('/settings/:groupId',requireRoles('ADMIN','HR','SUPERVISOR','AUDITOR'),async c=>{const u=c.get('user'),groupId=c.req.param('groupId')!;await assertGroupAccess(c,groupId);const settings=await loadCalendarSettings(c.env,u.organizationId,groupId,new Date().toISOString().slice(0,10));return c.json({id:settings.id,config:settings.config});});
+calendarRoutes.put('/settings/:groupId',requireRoles('ADMIN','HR'),zValidator('json',z.object({workingWeekdays:z.array(z.number().int().min(0).max(6)).min(1).max(7),effectiveFrom:z.string().regex(DATE_ONLY)})),async c=>{const u=c.get('user'),i=c.req.valid('json'),groupId=c.req.param('groupId');await assertGroupAccess(c,groupId);const latest=await c.env.DB.prepare(`SELECT COALESCE(MAX(version),0) version FROM group_policies WHERE organization_id=? AND group_id=? AND policy_key='CALENDAR_SETTINGS'`).bind(u.organizationId,groupId).first<{version:number}>();const config={workingWeekdays:[...new Set(i.workingWeekdays)].sort()};const id=crypto.randomUUID();await c.env.DB.prepare(`INSERT INTO group_policies(id,organization_id,group_id,policy_key,version,config_json,effective_from,created_by) VALUES(?,?,?,'CALENDAR_SETTINGS',?,?,?,?)`).bind(id,u.organizationId,groupId,(latest?.version??0)+1,JSON.stringify(config),i.effectiveFrom,u.id).run();await new AuditWriter(c.env.DB).append({organizationId:u.organizationId,actorId:u.id,actorRole:u.role,entityType:'GROUP_POLICY',entityId:id,action:'CREATED',newValue:{policyKey:'CALENDAR_SETTINGS',...config},ruleApplied:'CALENDAR_SETTINGS',correlationId:c.get('correlationId')});return c.json({id,version:(latest?.version??0)+1,config},201);});
