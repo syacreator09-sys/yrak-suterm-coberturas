@@ -4,20 +4,21 @@ Plataforma auditable para gestionar coberturas temporales, rotaciones y concurso
 
 ## Estado del repositorio
 
-- **Rama autoritativa:** `main`.
+- **Rama autoritativa:** `main`. Rama de trabajo activa: `build/connections-v1` (varios commits adelante de `main`, pendiente de PR — ver `docs/RELEASE_CANDIDATE.md`).
 - La construcción limpia fue integrada desde `build/clean-v1` mediante el PR #2.
-- `build/clean-v1` se conserva temporalmente como snapshot de esa integración.
 - `build/end-to-end-v1` es histórico experimental y no debe fusionarse.
 - `archive/main-before-clean-v1` conserva el estado de `main` anterior a la consolidación.
-- El código, migraciones, pruebas y scripts están construidos; **la ejecución de instalación, typecheck, tests, E2E, migraciones reales y despliegue queda pendiente de la fase de conexiones**.
+- **Estado real (2026-08-09):** la plataforma está desplegada en Cloudflare real y en operación piloto — API, panel administrativo, portal del trabajador, agentes IA, asistente y envío de correo (Gmail API) funcionando contra datos reales sembrados de un grupo piloto. `docs/TEST_MATRIX.md` fue ejecutado contra esa producción real; ver el resultado completo, los pendientes bloqueados y los hallazgos de la auditoría en `docs/RELEASE_CANDIDATE.md`. **No está lista para tráfico de empleados reales** hasta resolver los 4 pendientes bloqueados (dominio propio, `ANTHROPIC_API_KEY`, datos reales de personal, rotación del token de Cloudflare) — ver esa misma sección.
 
 Empieza por:
 
 1. `docs/START_HERE.md`
-2. `docs/FINAL_HANDOFF.md`
-3. `docs/HANDOFF_CHECKLIST.md`
-4. `docs/TEST_MATRIX.md`
-5. `docs/DECISIONES_PENDIENTES.md`
+2. `docs/RELEASE_CANDIDATE.md` — estado real, resultado de pruebas, pendientes bloqueados.
+3. `docs/RUNBOOK_AAH.md` — operación día a día del entorno ya desplegado.
+4. `docs/FINAL_HANDOFF.md`
+5. `docs/HANDOFF_CHECKLIST.md`
+6. `docs/TEST_MATRIX.md`
+7. `docs/DECISIONES_PENDIENTES.md`
 
 ## Reglas centrales
 
@@ -57,4 +58,4 @@ bash scripts/migrate-local.sh
 bash scripts/verify-local.sh
 ```
 
-Las conexiones reales de Cloudflare, correo, IA y datos CFE/SUTERM se realizan después. El repositorio no debe contener secretos.
+Las conexiones reales de Cloudflare, correo (Gmail API) e IA (NVIDIA NIM) ya están hechas y verificadas contra producción real (ver `docs/CONNECTIONS.md`). Los datos reales de personal CFE/SUTERM (más allá del grupo piloto) siguen pendientes. El repositorio no debe contener secretos — verificado en la auditoría de la Tarea 7 (`git grep` de patrones de secretos, limpio).

@@ -1,14 +1,21 @@
-# Conexiones pendientes para el handoff
+# Conexiones — estado real (actualizado al cierre de la Tarea 7, 2026-08-09)
 
-1. Crear D1 y reemplazar `REPLACE_WITH_D1_DATABASE_ID`; aplicar `migrations/`.
-2. Crear R2 `yrak-suterm-evidence`.
-3. Desplegar `GroupCoordinator` y `CoverageWorkflow` mediante Wrangler.
-4. Crear Queue `yrak-notifications`.
-5. Verificar dominio/remitente de Email Service y fijar `EMAIL_FROM`.
-6. Fijar `INBOUND_EMAIL_ORGANIZATION_ID` al ID de la organización que recibe el buzón; nunca se elige la primera organización automáticamente.
-7. Configurar Cloudflare Access y provisionar usuarios con el mismo correo autenticado.
-8. MCP: fijar `MCP_ORGANIZATION_ID`, luego ejecutar `wrangler secret put MCP_API_TOKEN` en `apps/mcp-worker`. El token **no** vive en `wrangler.jsonc`.
-9. Agregar proveedor de IA como secret/configuración cuando se habiliten extracción y transcripción. No es necesario para rotación, concurso, auditoría ni regreso automático.
-10. Importar grupos, niveles, transiciones, personal, requisitos, colas, calendario y usuarios reales.
+Este documento describía originalmente una lista de pendientes antes de conectar infraestructura real. Ese trabajo ya se hizo (Tareas 1–6 de `.superpowers/sdd/2026-08-09-yrak-e2e-final/`) y se verificó contra producción real en la Tarea 7. Debajo, cada punto original con su estado actual.
 
-Antes de producción ejecutar localmente: instalación, typecheck, pruebas, migración limpia, smoke tests, prueba de respaldo/restauración y validación de permisos.
+1. ✅ **D1** creado y migrado: `yrak-suterm-coberturas`, id real `bf353405-5422-4b9d-a11d-c8a8a813a4b6`, `migrations/` aplicadas (19 migraciones, hasta `0019_rotation_offer_timer.sql`).
+2. ✅ **R2** creado: bucket `yrak-suterm-evidence`. Vacío al cierre de la Tarea 7 (`object_count: 0`) — todavía no hay adjuntos reales.
+3. ✅ **`GroupCoordinator`** (Durable Object) y **`CoverageWorkflow`** (Workflow) desplegados con `api-worker`; su comportamiento de reserva/liberación se ejercitó en producción durante la Tarea 7 (ver `docs/RELEASE_CANDIDATE.md`, filas ROT-02/ROT-03).
+4. ✅ **Queue** `yrak-notifications` creada, con consumidor configurado en `api-worker` (`max_batch_size:10, max_retries:5`).
+5. ⚠️ **Email Service nativo de Cloudflare bloqueado por falta de dominio verificado** (`EMAIL_FROM` sigue en `REPLACE_WITH_VERIFIED_SENDER`). Se resolvió con una alternativa funcional: **envío real vía Gmail API + OAuth** (secrets `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_SENDER` en `api-worker`). Verificado extremo a extremo con clics reales de un humano (oferta de rotación → correo → aceptar → `SCHEDULED`; y expiración → cascada automática al siguiente candidato → nuevo correo).
+6. ⚠️ **Correo entrante sigue bloqueado por falta de dominio** (`INBOUND_EMAIL_ORGANIZATION_ID` está fijo a `suterm-cfe` en `wrangler.jsonc`, pero Email Routing de Cloudflare no puede activarse sin dominio propio). No hay riesgo de "elegir la primera organización automáticamente" porque el binding de correo entrante nunca llegó a activarse.
+7. ❌ **Cloudflare Access pendiente — bloqueado por falta de dominio.** Mientras tanto, la autenticación usa un bypass de desarrollo: header `Cf-Access-Authenticated-User-Email` ausente, sustituido por `x-yrak-user-email` + `x-yrak-dev-token` (debe coincidir con el secret `DEV_AUTH_TOKEN`). Ver `docs/RUNBOOK_AAH.md` sección 1 y `docs/SECURITY_MODEL.md`. Los usuarios ya están provisionados en la tabla `users` con el correo que usarán cuando Access esté activo.
+8. ✅ **MCP**: `MCP_ORGANIZATION_ID=suterm-cfe` fijo en `apps/mcp-worker/wrangler.jsonc`; `MCP_API_TOKEN` cargado vía `wrangler secret put` (confirmado con `wrangler secret list`, no vive en `wrangler.jsonc` ni en Git).
+9. ✅ **Proveedor de IA en producción**: NVIDIA NIM (`deepseek-ai/deepseek-v4-flash-0731`) vía el proveedor genérico `compatible`, activo en `api-worker` y `agent-worker` (secret `AI_COMPAT_API_KEY`). Anthropic/`claude-sonnet-5` está completamente cableado como alterno pero **inactivo** — falta únicamente el secret `ANTHROPIC_API_KEY` y cambiar `AI_PROVIDER` a `"anthropic"`; no requiere cambio de código (ver `docs/RUNBOOK_AAH.md` sección 8).
+10. ⚠️ **Datos reales parcialmente importados**: sembrados `Grupo A` (niveles 5–8, transiciones 5→6→7→8, pool de rotación 7→8 con 3 empleados piloto) y `Grupo Piloto` (2 empleados de pruebas manuales previas), organización `suterm-cfe`. **Faltan**: personal real (no piloto) de CFE/SUTERM con sus correos reales, requisitos de nivel (`requirements`/`target_level_requirements` — tabla vacía hoy, lo que bloquea probar concursos reales), calendario/feriados/turnos reales, y usuarios con roles `SUPERVISOR`/`HR`/`COMMITTEE`/`AUDITOR` (hoy sólo existen `ADMIN` y `EMPLOYEE`).
+
+## Verificación ejecutada en la Tarea 7 (contra producción real)
+
+- Instalación/typecheck/tests/build: no se tocó código en esta tarea (sólo documentación y scripts de auditoría), por lo que no se re-ejecutó `pnpm typecheck/test/build`; siguen siendo responsabilidad de la próxima tarea que toque código.
+- `docs/TEST_MATRIX.md`: ejecutado contra producción real donde el entorno lo permite — ver la tabla completa de resultados en `docs/RELEASE_CANDIDATE.md`.
+- Prueba de respaldo/restauración: ejecutada y verificada (D1) — ver `docs/RELEASE_CANDIDATE.md` y `docs/BACKUP_RESTORE.md`. R2 no se pudo probar en esta máquina (falta CLI `aws` y credenciales S3 de R2; el bucket está vacío de todas formas).
+- Validación de permisos: `EMPLOYEE` contra endpoints administrativos → `403`; empleado actuando sobre oferta ajena → `400 FORBIDDEN`; sin autenticación → `401`; CORS restringido al allowlist de orígenes — todo verificado en producción real.
