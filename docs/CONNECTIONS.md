@@ -2,7 +2,7 @@
 
 Este documento describía originalmente una lista de pendientes antes de conectar infraestructura real. Ese trabajo ya se hizo (Tareas 1–6 de `.superpowers/sdd/2026-08-09-yrak-e2e-final/`) y se verificó contra producción real en la Tarea 7. Debajo, cada punto original con su estado actual.
 
-1. ✅ **D1** creado y migrado: `yrak-suterm-coberturas`, id real `bf353405-5422-4b9d-a11d-c8a8a813a4b6`, `migrations/` aplicadas (19 migraciones, hasta `0019_rotation_offer_timer.sql`).
+1. ✅ **D1** creado y migrado: `yrak-suterm-coberturas`, id real `bf353405-5422-4b9d-a11d-c8a8a813a4b6`, `migrations/` aplicadas (18 archivos — la numeración salta de `0012` a `0014` — hasta `0019_rotation_offer_timer.sql`).
 2. ✅ **R2** creado: bucket `yrak-suterm-evidence`. Vacío al cierre de la Tarea 7 (`object_count: 0`) — todavía no hay adjuntos reales.
 3. ✅ **`GroupCoordinator`** (Durable Object) y **`CoverageWorkflow`** (Workflow) desplegados con `api-worker`; su comportamiento de reserva/liberación se ejercitó en producción durante la Tarea 7 (ver `docs/RELEASE_CANDIDATE.md`, filas ROT-02/ROT-03).
 4. ✅ **Queue** `yrak-notifications` creada, con consumidor configurado en `api-worker` (`max_batch_size:10, max_retries:5`).

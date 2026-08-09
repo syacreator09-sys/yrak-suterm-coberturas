@@ -99,18 +99,21 @@ curl -s -H "x-yrak-user-email: <admin>" -H "x-yrak-dev-token: <token>" -H "conte
 
 Si el expediente tiene hijos por cascada, se cancelan recursivamente. Si la asignación activa está `ACTIVE` (ya en curso), la API exige el campo adicional `activeRotationConsumesTurn: true|false` — no lo adivina.
 
-## 5. Problemas conocidos (encontrados en la auditoría de la Tarea 7)
+## 5. Problemas encontrados en la auditoría de la Tarea 7 — CORREGIDOS en Tarea 7b (mismo día)
 
-Ver el detalle completo y el código exacto en `docs/RELEASE_CANDIDATE.md`, sección "Hallazgos de esta auditoría". Resumen operativo:
+Ver el detalle completo en `docs/RELEASE_CANDIDATE.md`, sección "Hallazgos de esta auditoría — CORREGIDOS". Resumen operativo (ya no reproducibles en el código actual, gates verdes y reverificado contra producción):
 
-1. **Rechazar/vencer una oferta con `rejectionConsumesTurn=true` puede reactivar como `AVAILABLE` a compañeros de fila que en realidad seguían `ASSIGNED` a otra cobertura en el mismo pool.** Si ves a un empleado con estado `AVAILABLE` en `rotation_queue_entries` mientras tiene una asignación `SCHEDULED`/`ACTIVE` real y no vencida en el mismo pool, es este bug. Corrección manual mientras se arregla el código:
-   ```sql
-   UPDATE rotation_queue_entries SET status='ASSIGNED', version=version+1
-   WHERE pool_id='<poolId>' AND employee_id='<employeeId>';
-   ```
-2. **Cancelar un expediente con más de una fila en `temporary_assignments` (por ejemplo tras una cascada de oferta vencida) puede liberar la fila de la cola del empleado equivocado.** Después de cancelar un expediente que tuvo más de una oferta, verificar manualmente el estado de `rotation_queue_entries` del/los empleado(s) involucrados antes de asumir que quedaron consistentes.
+1. Rechazar una oferta con `rejectionConsumesTurn=true` reactivaba como `AVAILABLE` a compañeros de fila que en realidad seguían `ASSIGNED` a otra cobertura en el mismo pool. **Corregido** en `rotation-response-service.ts`: el `UPDATE` de reordenamiento ahora solo cambia `status` para el empleado que rechazó.
+2. Cancelar un expediente con más de una fila en `temporary_assignments` podía liberar la fila de la cola del empleado equivocado. **Corregido** en `cancellation-service.ts`: la selección de la asignación relevante ahora filtra `status NOT IN ('CANCELLED','COMPLETED','REPLACED')`.
+3. El mismo patrón del hallazgo 1 existía también en `completeRotationAssignment` (regreso a nivel base, `rotation-service.ts`) — encontrado por inspección propia al corregir el 1, no por el auditor. **Corregido** con el mismo enfoque.
 
-Ninguno de los dos compromete la regla de nivel base inmutable ni la auditoría — son inconsistencias del campo derivado `rotation_queue_entries.status`, siempre recuperables por consulta directa y corrección manual como la de arriba.
+Si en algún momento ves a un empleado en `rotation_queue_entries.status='AVAILABLE'` mientras tiene una asignación `SCHEDULED`/`ACTIVE` real y no vencida en el mismo pool, es una regresión de este bug — repórtala, no debería volver a ocurrir con el código actual. Corrección manual de emergencia si hiciera falta:
+```sql
+UPDATE rotation_queue_entries SET status='ASSIGNED', version=version+1
+WHERE pool_id='<poolId>' AND employee_id='<employeeId>';
+```
+
+**Nota de auditoría:** cualquier corrección manual directa contra `rotation_queue_entries` (por `wrangler d1 execute`, fuera del flujo de la aplicación) **no** genera fila en `audit_events` automáticamente (a diferencia de cualquier cambio hecho vía API, que sí queda registrado por diseño). Si se corrige manualmente `rotation_queue_entries.status` en producción, insertar también un evento correctivo en `audit_events` (actor, motivo, valores antes/después) para no dejar un hueco en la trazabilidad.
 
 ## 6. Auditoría e inmutabilidad
 
