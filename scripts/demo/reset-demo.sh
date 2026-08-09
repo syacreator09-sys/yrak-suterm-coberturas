@@ -4,6 +4,13 @@
 set -euo pipefail
 : "${CLOUDFLARE_API_TOKEN:?export CLOUDFLARE_API_TOKEN}"
 : "${CLOUDFLARE_ACCOUNT_ID:?export CLOUDFLARE_ACCOUNT_ID}"
+# seed-demo.sh's own required vars are checked here too, BEFORE the
+# destructive DELETE block below runs — otherwise a missing var would only
+# be caught by seed-demo.sh itself, after the demo data was already wiped,
+# leaving the environment empty with nothing to re-seed it.
+: "${YRAK_API_BASE:?set YRAK_API_BASE}"
+: "${YRAK_USER_EMAIL:?set YRAK_USER_EMAIL}"
+: "${YRAK_DEV_TOKEN:?set YRAK_DEV_TOKEN}"
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../../apps/api-worker"
 npx wrangler d1 execute yrak-suterm-demo --env demo --remote --command "

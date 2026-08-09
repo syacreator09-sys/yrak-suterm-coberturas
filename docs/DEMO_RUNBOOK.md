@@ -15,11 +15,19 @@
 
 Este guión fue ensayado en vivo contra el entorno `-demo` real el 2026-08-09 (ver `task-6-report.md` para la evidencia curl completa). Todo lo marcado **[ENSAYADO]** abajo se ejecutó de punta a punta contra la API real y produjo el resultado documentado. Todo lo marcado **[NO ENSAYADO — requiere correo/navegador]** no se pudo probar en ese pase porque el entorno de ejecución no tiene acceso al buzón real ni a un navegador; queda pendiente de una verificación manual antes de la primera presentación en vivo.
 
-**Tres hallazgos bloquean partes de este guión tal como estaba escrito originalmente — corregidos abajo, pero léelos antes de presentar:**
+**Actualización 2026-08-09 (post-cierre de rama):** los dos hallazgos que originalmente bloqueaban Actos 5.1 y SEC-01 (abajo, texto original conservado como bitácora) **ya fueron corregidos, revisados por seguridad y desplegados a demo Y a producción, con verificación en vivo real en ambos entornos.** Ambos ya se pueden presentar con normalidad:
 
-1. **Acto 5.1 (Asistente IA) está roto ahora mismo.** `POST /v1/assistant` responde `400 {"error":"Unexpected token 'e', \"error code: 1042\n\" is not valid JSON"}` de forma 100% reproducible. Causa raíz: `assistant.ts` en el api-worker hace un `fetch()` directo de una URL `*.workers.dev` a otra URL `*.workers.dev` del mismo account (`AGENT_WORKER_URL`) — Cloudflare bloquea ese patrón worker-a-worker con el error 1042; requiere un Service Binding en vez de un fetch por URL. El agent-worker en sí funciona perfecto llamado directo (confirmado por curl). El mismo patrón de configuración existe en producción (`apps/api-worker/wrangler.jsonc`, bloque raíz), así que es probable que el asistente esté roto ahí también — **no verificado en producción en este pase, pero la config es idéntica.** No demostrar el Acto 5.1 en vivo hasta que se arregle. Ver Concern #1 del reporte de esta tarea.
-2. **Acto 4 / SEC-01 no está protegido.** `GET /v1/coverage-cases` ignora por completo el query param `groupId` y nunca llama `assertGroupAccess` — cualquier rol permitido (incluido SUPERVISOR) ve **todos** los expedientes de **todos** los grupos de la organización, no solo el suyo. Confirmado creando un expediente en Comercial y viéndolo con la sesión del supervisor de Distribución. El resultado real es `200` con la lista completa, no `400 GROUP_FORBIDDEN`. No demostrar SEC-01 como "seguridad que funciona" hasta que se corrija — es un hallazgo de seguridad real, no un ejemplo positivo.
-3. **El seed de Task B2 no incluye un segundo aprobador (`HR`/`COMMITTEE`).** El paso 3.7 (doble control de calificaciones) requiere un segundo usuario con rol distinto al que capturó/aprobó — solo existían `ADMIN` (Secretario) y `SUPERVISOR` (Distribución). Se creó en vivo `demo-user-committee` (`yrakelizalde9+demo-user-committee@gmail.com`, rol `COMMITTEE`, ambos grupos) vía `POST /v1/import/users` para poder ensayar el paso. **`scripts/demo/seed-demo.sh` debería incluir este usuario en su Paso 6** para que el guión sea reproducible después de un `reset-demo.sh`.
+- **Acto 5.1 (Asistente IA):** corregido con un Service Binding en vez de `fetch()` por URL (commits `8c33e5a`, `6941ba1`, con tests de regresión). Verificado 5/5 en producción real tras el deploy.
+- **SEC-01 (`GET /v1/coverage-cases` sin scope de grupo):** corregido para que refleje exactamente lo que dice la fila SEC-01 más abajo — `403 GROUP_FORBIDDEN` en lectura cruzada (commit `f8a597f`, revisión de seguridad dedicada: SAFE TO DEPLOY). Verificado en vivo en demo y producción.
+- **Hallazgo relacionado, encontrado en la revisión final de toda la rama:** `GET /v1/calendar/holidays` (Acto 1) tenía el mismo tipo de vacío — corregido en el mismo commit final antes de este cierre.
+
+Un tercer hallazgo (`demo-user-committee` faltante en el seed) también se corrigió — `scripts/demo/seed-demo.sh` ya lo crea en su Paso 6.
+
+**Registro histórico (texto original al momento del ensayo, ya no vigente para los puntos 1 y 2):**
+
+1. ~~Acto 5.1 (Asistente IA) está roto ahora mismo.~~ `POST /v1/assistant` respondía `400 {"error":"Unexpected token 'e', \"error code: 1042\n\" is not valid JSON"}` de forma 100% reproducible. Causa raíz: `assistant.ts` en el api-worker hacía un `fetch()` directo de una URL `*.workers.dev` a otra URL `*.workers.dev` del mismo account (`AGENT_WORKER_URL`) — Cloudflare bloquea ese patrón worker-a-worker con el error 1042. **Corregido — ver actualización arriba.**
+2. ~~Acto 4 / SEC-01 no está protegido.~~ `GET /v1/coverage-cases` ignoraba por completo el query param `groupId` y nunca llamaba `assertGroupAccess`. **Corregido — ver actualización arriba.**
+3. ~~El seed de Task B2 no incluye un segundo aprobador (`HR`/`COMMITTEE`).~~ El paso 3.7 (doble control de calificaciones) requiere un segundo usuario con rol distinto al que capturó/aprobó — solo existían `ADMIN` (Secretario) y `SUPERVISOR` (Distribución). Se creó en vivo `demo-user-committee` para poder ensayar el paso, y **ya se agregó a `scripts/demo/seed-demo.sh` (Paso 6)** — corregido, un `reset-demo.sh` ya lo recrea automáticamente.
 
 ---
 
@@ -70,12 +78,11 @@ API=https://yrak-suterm-coberturas-api-demo.yrak-suterm.workers.dev
 SUP="x-yrak-user-email: yrakelizalde9+demo-user-supervisor@gmail.com"
 TOK="x-yrak-dev-token: $DEMO_DEV_AUTH_TOKEN"
 
-# SEC-01 — NO PRESENTAR COMO "funciona bien": hallazgo real de seguridad, ver Nota de ensayo #2.
-# GET /v1/coverage-cases ignora el query param groupId por completo y nunca llama assertGroupAccess.
+# SEC-01 — CORREGIDO (commit f8a597f, revisión de seguridad dedicada: SAFE TO DEPLOY).
+# Ahora sí se puede presentar como ejemplo positivo de seguridad.
 curl -s "$API/v1/coverage-cases?groupId=demo-grupo-comercial" -H "$SUP" -H "$TOK"
-# → resultado REAL confirmado: 200 con TODOS los expedientes de TODOS los grupos (no solo Comercial,
-#   ni siquiera filtrado — el query param groupId se ignora). El guión original asumía 400 GROUP_FORBIDDEN;
-#   eso NO ocurre hoy. Pendiente de fix antes de usar este ejemplo como demostración de seguridad.
+# → resultado real confirmado tras el fix: 403 {"error":"GROUP_FORBIDDEN"}. Sin groupId, el mismo
+#   supervisor solo ve los expedientes de su propio grupo (auto-scope). Verificado en demo y producción.
 
 # SEC-02 — un EMPLOYEE no puede listar todos los expedientes [ENSAYADO, confirmado exacto]
 curl -s "$API/v1/coverage-cases" -H "x-yrak-user-email: yrakelizalde9+demo-emp-01@gmail.com" -H "$TOK"
@@ -113,7 +120,7 @@ Explicar en vivo, sin curl (referenciar la tabla completa en `docs/RELEASE_CANDI
 
 | Paso | Acción | Resultado esperado |
 |---|---|---|
-| 5.1 **[ROTO — no presentar hasta corregir, ver Nota de ensayo #1]** | Asistente IA → preguntar "¿cuántos días aplican a rotación en Comercial?" | Falla 100% reproducible: `400 {"error":"Unexpected token 'e', \"error code: 1042\n\" is not valid JSON"}`. Causa: fetch worker-a-worker entre dos subdominios `*.workers.dev` del mismo account, bloqueado por Cloudflare (error 1042); requiere Service Binding. El agent-worker funciona perfecto llamado directo. |
+| 5.1 **[ENSAYADO — corregido tras el hallazgo original]** | Asistente IA → preguntar "¿cuántos días aplican a rotación en Comercial?" | Ya funciona: se agregó un Service Binding (commits `8c33e5a`/`6941ba1`) en vez del `fetch()` por URL que causaba el error 1042 de Cloudflare. Verificado 5/5 real en producción tras el deploy. Sí se puede presentar en vivo. |
 | 5.2 **[ENSAYADO]** | Documentos/IA → pegar un texto de incidencia de ejemplo → "Crear borrador" | Borrador extraído con campos estructurados — confirmado con un texto de ejemplo ("cobertura para Distribución, nivel 8, del 3 al 4 de septiembre de 2026 por incapacidad"): `{"group":"Distribución","targetLevel":8,"startDate":"2026-09-03","endDate":"2026-09-04","reason":"incapacidad del titular","employeeReference":null}`, `status:"PENDING_REVIEW"`. Este camino usa el proveedor de IA directo (NVIDIA NIM), no el agent-worker — por eso no le afecta el problema del paso 5.1. |
 | 5.3 **[ENSAYADO]** | Reportes → descargar CSV de auditoría | Bitácora completa de TODO lo hecho en el demo, exportable — confirmado: `GET /v1/reports/audit.csv` devuelve `text/csv`, `content-disposition: attachment; filename="audit.csv"`, 39 eventos reales de auditoría del ensayo (política, feriados, expedientes, ofertas, revisiones, apelaciones, adjudicación). |
 
@@ -123,8 +130,8 @@ Explicar en vivo, sin curl (referenciar la tabla completa en `docs/RELEASE_CANDI
 
 - [ ] `./scripts/demo/reset-demo.sh` corrido en los últimos 30 minutos — **cuidado con `holidays`, ver nota al inicio de este documento**
 - [ ] Verificar `GET /health` y `GET /ready` del entorno demo
-- [ ] Verificar `POST /v1/assistant` con una pregunta de prueba — **si sigue devolviendo el error 1042, omitir el Acto 5.1 del guión en vivo**
+- [ ] Verificar `POST /v1/assistant` con una pregunta de prueba (corregido, debería funcionar — si por alguna razón volviera a fallar con error 1042, omitir el Acto 5.1)
 - [ ] Confirmar acceso al buzón `yrakelizalde9@gmail.com` para mostrar correos en vivo
 - [ ] Tener el `caseId`/`assignmentId` de al menos un caso ya en `PROPOSED` como respaldo si el timer de 2 min se vence antes de tiempo durante la demo en vivo
-- [ ] Confirmar que existe el usuario `demo-user-committee` (rol `COMMITTEE`) para el Acto 3.7 — si `reset-demo.sh`/`seed-demo.sh` no lo recrean todavía, volver a crearlo con `POST /v1/import/users`
+- [ ] Confirmar que existe el usuario `demo-user-committee` (rol `COMMITTEE`) para el Acto 3.7 — `seed-demo.sh` ya lo crea automáticamente en su Paso 6
 - [ ] Si el Acto 3 se presenta, confirmar que el rango de fechas elegido termina antes del próximo vencimiento útil en `employee_requirements` (hoy: 2026-09-05, cert de demo-emp-03) para que el patrón de elegibilidad siga siendo interesante

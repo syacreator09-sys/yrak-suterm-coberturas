@@ -15,14 +15,25 @@ ALIAS_BASE="${YRAK_USER_EMAIL%%@*}"
 ALIAS_DOMAIN="${YRAK_USER_EMAIL#*@}"
 
 curl_json() {
-  local method="$1" path="$2" body="${3:-}"
+  # Fails the script (via `set -e`) on any HTTP >=400 response instead of
+  # silently printing an error JSON and continuing — `curl -sS` alone exits 0
+  # on HTTP errors, so without this a broken step could report "Seed
+  # completo." even though it failed partway through.
+  local method="$1" path="$2" body="${3:-}" response status
   if [ -n "$body" ]; then
-    curl -sS -X "$method" "${YRAK_API_BASE}${path}" -H "content-type: application/json" \
-      -H "x-yrak-user-email: ${YRAK_USER_EMAIL}" -H "x-yrak-dev-token: ${YRAK_DEV_TOKEN}" -d "$body"
+    response=$(curl -sS -w '\n%{http_code}' -X "$method" "${YRAK_API_BASE}${path}" -H "content-type: application/json" \
+      -H "x-yrak-user-email: ${YRAK_USER_EMAIL}" -H "x-yrak-dev-token: ${YRAK_DEV_TOKEN}" -d "$body")
   else
-    curl -sS -X "$method" "${YRAK_API_BASE}${path}" \
-      -H "x-yrak-user-email: ${YRAK_USER_EMAIL}" -H "x-yrak-dev-token: ${YRAK_DEV_TOKEN}"
+    response=$(curl -sS -w '\n%{http_code}' -X "$method" "${YRAK_API_BASE}${path}" \
+      -H "x-yrak-user-email: ${YRAK_USER_EMAIL}" -H "x-yrak-dev-token: ${YRAK_DEV_TOKEN}")
   fi
+  status="${response##*$'\n'}"
+  body_out="${response%$'\n'*}"
+  if [ "$status" -ge 400 ]; then
+    echo "ERROR: $method $path -> HTTP $status: $body_out" >&2
+    return 1
+  fi
+  echo "$body_out"
 }
 
 echo "== [1/9] Catálogo (2 grupos, niveles, transiciones) ==" >&2
@@ -55,9 +66,14 @@ curl_json POST /v1/import/employee-requirements "$(jq -nc '{items:[
   {employeeId:"demo-emp-04",requirementId:"demo-req-curso-n8",status:"EXPIRED",completedAt:"2023-01-01",validUntil:"2025-01-01"}
 ]}')" | jq -c .
 
-echo "== [6/9] Usuarios: SUPERVISOR (solo Distribución) + EMPLOYEE x10 (+alias) ==" >&2
+echo "== [6/9] Usuarios: SUPERVISOR (solo Distribución) + COMMITTEE (ambos grupos) + EMPLOYEE x10 (+alias) ==" >&2
 SUP_EMAIL="${ALIAS_BASE}+demo-user-supervisor@${ALIAS_DOMAIN}"
+COMMITTEE_EMAIL="${ALIAS_BASE}+demo-user-committee@${ALIAS_DOMAIN}"
 curl_json POST /v1/import/users "$(jq -nc --arg email "$SUP_EMAIL" '{items:[{id:"demo-user-supervisor",email:$email,displayName:"Supervisor Distribución (DEMO)",role:"SUPERVISOR",groupIds:["demo-grupo-distribucion"]}]}')" | jq -c .
+# Segundo aprobador con rol distinto al Secretario/ADMIN, requerido por el doble control de
+# calificaciones (Acto 3.7 del guión de demo) — sin esto, PATCH .../score-revisions/:id/approve
+# siempre falla con SECOND_APPROVER_REQUIRED porque no hay ningún otro rol elegible sembrado.
+curl_json POST /v1/import/users "$(jq -nc --arg email "$COMMITTEE_EMAIL" '{items:[{id:"demo-user-committee",email:$email,displayName:"Comité (DEMO)",role:"COMMITTEE",groupIds:["demo-grupo-distribucion","demo-grupo-comercial"]}]}')" | jq -c .
 EMP_USERS=$(jq -c --arg base "$ALIAS_BASE" --arg domain "$ALIAS_DOMAIN" \
   '{items: [.items[] | {id: ("user-" + .id), email: ($base + "+" + .id + "@" + $domain), displayName: .name, role: "EMPLOYEE", employeeId: .id, groupIds: [.groupId]}]}' "$EXAMPLES/employees.json")
 curl_json POST /v1/import/users "$EMP_USERS" | jq -c .
@@ -80,4 +96,5 @@ curl_json POST /v1/employees/demo-emp-05/unavailability '{"kind":"VACATION","sta
 
 echo "Seed completo." >&2
 echo "SUPERVISOR_EMAIL=$SUP_EMAIL"
+echo "COMMITTEE_EMAIL=$COMMITTEE_EMAIL"
 echo "EMPLOYEE_EMAILS=${ALIAS_BASE}+demo-emp-01@${ALIAS_DOMAIN} .. ${ALIAS_BASE}+demo-emp-10@${ALIAS_DOMAIN}"
