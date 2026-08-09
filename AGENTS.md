@@ -10,3 +10,8 @@
 8. No guardar secretos en Git.
 9. Las políticas aún no confirmadas deben configurarse; no inventarlas en código.
 10. Los servicios de dominio no importan Cloudflare, Hono ni SDKs de modelos.
+
+<!-- AAH:START -->
+## Adaptive Agent Harness
+For AAH work use fresh independent producer/evaluator brains, sealed SPEC/RUBRIC contracts, persistent findings/evidence, and deterministic gates. External runs: `.aah/bin/factory run "<goal>" --profile auto`; native Claude Code: `/aah`. Never expose `.env` values, bypass Guardian, or treat another agent's conclusion as proof. MCP servers remain project/user managed and are selected only when required.
+<!-- AAH:END -->

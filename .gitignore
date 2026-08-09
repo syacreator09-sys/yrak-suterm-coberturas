@@ -11,3 +11,6 @@ coverage/
 !.env.example
 *.log
 .DS_Store
+.aah/
+.claude/settings.local.json
+.codex/
