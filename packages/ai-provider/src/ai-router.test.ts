@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import type { AIProvider } from './provider.js';
 import { AIProviderRegistry } from './provider-registry.js';
 import { YrakAIRouter } from './ai-router.js';
@@ -6,7 +7,7 @@ import { YrakAIRouter } from './ai-router.js';
 function provider(value: string): AIProvider {
   return {
     async generate() { return value; },
-    async extract<T>(_input, schema) { return schema.parse({}) as T; },
+    async extract<T>(_input: { system: string; content: string }, schema: z.ZodType<T>) { return schema.parse({}) as T; },
     async transcribe() { return { text: value }; },
   };
 }
