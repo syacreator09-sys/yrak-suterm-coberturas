@@ -1,5 +1,6 @@
 import {
   AIProviderRegistry,
+  AnthropicProvider,
   OpenAICompatibleProvider,
   TaskScopedAIProvider,
   WorkersAIProvider,
@@ -38,6 +39,18 @@ export function createAIRouter(env: Env): YrakAIRouter {
     });
   }
 
+  if (env.ANTHROPIC_API_KEY) {
+    registry.register({
+      id: 'anthropic',
+      provider: new AnthropicProvider({
+        apiKey: env.ANTHROPIC_API_KEY,
+        textModel: env.ANTHROPIC_TEXT_MODEL ?? 'claude-sonnet-5',
+      }),
+      model: env.ANTHROPIC_TEXT_MODEL ?? 'claude-sonnet-5',
+      capabilities: ['generate', 'extract'],
+    });
+  }
+
   const compatibleId = env.AI_COMPAT_PROVIDER_ID?.trim();
   if (compatibleId && env.AI_COMPAT_BASE_URL && env.AI_COMPAT_TEXT_MODEL) {
     registry.register({
@@ -63,7 +76,10 @@ export function createAIRouter(env: Env): YrakAIRouter {
 
   return new YrakAIRouter(
     registry,
-    createDefaultRoutingPolicy(compatibleId ? { compatibleProviderId: compatibleId } : {}),
+    createDefaultRoutingPolicy({
+      anthropicProviderId: 'anthropic',
+      ...(compatibleId ? { compatibleProviderId: compatibleId } : {}),
+    }),
     { maxAttempts: positiveInt(env.AI_MAX_PROVIDER_ATTEMPTS, 2) },
   );
 }

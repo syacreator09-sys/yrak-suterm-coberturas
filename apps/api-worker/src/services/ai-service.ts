@@ -25,7 +25,7 @@ export function createAIProvider(env: AppEnv): AIProvider {
       if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY_NOT_CONFIGURED');
       return new AnthropicProvider({
         apiKey: env.ANTHROPIC_API_KEY,
-        textModel: env.ANTHROPIC_TEXT_MODEL ?? 'claude-opus-5',
+        textModel: env.ANTHROPIC_TEXT_MODEL ?? 'claude-sonnet-5',
       });
     case 'compatible': {
       if (!env.AI_COMPAT_BASE_URL || !env.AI_COMPAT_TEXT_MODEL) {

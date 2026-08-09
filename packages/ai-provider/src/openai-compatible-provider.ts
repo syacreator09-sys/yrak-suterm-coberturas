@@ -47,7 +47,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   }
 
   private get fetchImpl(): typeof fetch {
-    return this.config.fetchImpl ?? fetch;
+    return this.config.fetchImpl ?? fetch.bind(globalThis);
   }
 
   private headers(contentType = true): Record<string, string> {

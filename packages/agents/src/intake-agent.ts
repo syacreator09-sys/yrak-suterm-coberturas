@@ -15,7 +15,10 @@ export class IntakeAgent {
   constructor(private readonly provider: AIProvider) {}
   async extractFromText(content: string): Promise<IntakeDraft> {
     return this.provider.extract({
-      system: 'Extrae únicamente datos explícitos para crear un BORRADOR de cobertura. No selecciones candidatos ni tomes decisiones laborales. Usa null si falta un dato.',
+      system: 'Extrae únicamente datos explícitos para crear un BORRADOR de cobertura. No selecciones candidatos ni tomes decisiones laborales. '
+        + 'Devuelve un objeto JSON con EXACTAMENTE estas claves en inglés, sin traducirlas ni agregar otras: '
+        + '"group" (string|null), "targetLevel" (integer|null), "startDate" (string ISO|null), "endDate" (string ISO|null), '
+        + '"reason" (string|null), "employeeReference" (string|null). Usa null si falta un dato — nunca omitas una clave.',
       content,
     }, IntakeDraftSchema);
   }

@@ -16,4 +16,6 @@ export interface Env {
   AI_COMPAT_API_KEY?: string;
   AI_COMPAT_TEXT_MODEL?: string;
   AI_COMPAT_TRANSCRIPTION_MODEL?: string;
+  ANTHROPIC_API_KEY?: string;
+  ANTHROPIC_TEXT_MODEL?: string;
 }

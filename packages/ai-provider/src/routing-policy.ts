@@ -17,6 +17,7 @@ function routesFor(providerIds: readonly string[]): Partial<Record<AITask, reado
 export interface DefaultRoutingPolicyOptions {
   workersProviderId?: string;
   compatibleProviderId?: string;
+  anthropicProviderId?: string;
   mockProviderId?: string;
 }
 
@@ -25,9 +26,13 @@ export function createDefaultRoutingPolicy(
 ): AIRoutingPolicy {
   const workers = options.workersProviderId ?? 'workers-ai';
   const compatible = options.compatibleProviderId;
+  const anthropic = options.anthropicProviderId;
   const mock = options.mockProviderId ?? 'mock';
-  const localOrder = compatible ? [compatible, workers] : [workers];
-  const cloudOrder = compatible ? [workers, compatible] : [workers];
+  // Anthropic (Sonnet) is the preferred quality provider when registered — it is only ever
+  // selected if the caller actually registered it (e.g. ANTHROPIC_API_KEY is configured);
+  // AIProviderRegistry.supports() silently filters out unregistered ids. workers-ai stays the
+  // free, always-available fallback in every environment, including local dev.
+  const order = [anthropic, compatible, workers].filter((id): id is string => Boolean(id));
 
   return {
     test: {
@@ -35,20 +40,20 @@ export function createDefaultRoutingPolicy(
       TRANSCRIPTION: [mock],
     },
     local: {
-      ...routesFor(localOrder),
-      TRANSCRIPTION: localOrder,
+      ...routesFor(order),
+      TRANSCRIPTION: order,
     },
     development: {
-      ...routesFor(localOrder),
-      TRANSCRIPTION: localOrder,
+      ...routesFor(order),
+      TRANSCRIPTION: order,
     },
     staging: {
-      ...routesFor(cloudOrder),
-      TRANSCRIPTION: cloudOrder,
+      ...routesFor(order),
+      TRANSCRIPTION: order,
     },
     production: {
-      ...routesFor(cloudOrder),
-      TRANSCRIPTION: cloudOrder,
+      ...routesFor(order),
+      TRANSCRIPTION: order,
     },
   };
 }
