@@ -23,7 +23,7 @@
 
 ## PILAR A — Calendario propio
 
-### Task A1: Backend de calendario — settings versionados, fix del bug de contexto, migración, tests
+### Task 1 (A1): Backend de calendario — settings versionados, fix del bug de contexto, migración, tests
 
 **Files:**
 - Create: `migrations/0020_calendar_settings.sql`
@@ -179,7 +179,7 @@ EOF
 
 ---
 
-### Task A2: API de calendario — CRUD, endurecer imports, OpenAPI
+### Task 2 (A2): API de calendario — CRUD, endurecer imports, OpenAPI
 
 **Files:**
 - Create: `apps/api-worker/src/routes/calendar.ts`
@@ -445,7 +445,7 @@ EOF
 
 ---
 
-### Task A3: UI de calendario + seed de feriados mexicanos
+### Task 3 (A3): UI de calendario + seed de feriados mexicanos
 
 **Files:**
 - Modify: `apps/admin-web/src/main.ts`
@@ -556,7 +556,7 @@ EOF
 
 ## PILAR B — Demo profesional en Cloudflare
 
-### Task B1: Entorno demo separado en Cloudflare
+### Task 4 (B1): Entorno demo separado en Cloudflare
 
 **Files:**
 - Modify: `apps/api-worker/wrangler.jsonc`
@@ -765,7 +765,7 @@ EOF
 
 ---
 
-### Task B2: Seed ficticio completo vía API
+### Task 5 (B2): Seed ficticio completo vía API
 
 **Files:**
 - Create: `scripts/demo/seed-demo.sh`
@@ -1035,7 +1035,7 @@ EOF
 
 ---
 
-### Task B3: Guión de demo profesional + catálogo de fallos
+### Task 6 (B3): Guión de demo profesional + catálogo de fallos
 
 **Files:**
 - Create: `docs/DEMO_RUNBOOK.md`
@@ -1174,7 +1174,7 @@ EOF
 
 ---
 
-### Task B4: Ejecutar la matriz pendiente en demo + auditoría + PR
+### Task 7 (B4): Ejecutar la matriz pendiente en demo + auditoría + PR
 
 **Files:**
 - Create: `docs/DEMO_RESULTS.md`
