@@ -182,6 +182,9 @@ importers:
 
   packages/acceptance-tests:
     dependencies:
+      '@yrak/calendar':
+        specifier: workspace:*
+        version: link:../calendar
       '@yrak/competition':
         specifier: workspace:*
         version: link:../competition

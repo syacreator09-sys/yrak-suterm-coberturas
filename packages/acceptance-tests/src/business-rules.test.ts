@@ -3,6 +3,7 @@ import { DEFAULT_COVERAGE_POLICY, determineCoverageProcess } from '@yrak/domain'
 import { moveCompletedCandidateToEnd, selectNextCandidate } from '@yrak/rotation';
 import { evaluateEligibility } from '@yrak/eligibility';
 import { rankCompetition } from '@yrak/competition';
+import { computeCountedDates } from '@yrak/calendar';
 
 const employee = (id: string, position: number, availability: 'AVAILABLE' | 'UNAVAILABLE' = 'AVAILABLE') => ({
   employeeId: id as any,
@@ -21,6 +22,14 @@ describe('YRAK confirmed business rules', () => {
     for (const days of [6, 7, 14, 30]) {
       expect(determineCoverageProcess(days, DEFAULT_COVERAGE_POLICY)).toBe('COMPETITION');
     }
+  });
+
+  it('el mismo rango de fechas cambia de competencia a rotación según feriados y modo de conteo', () => {
+    const range = { start: '2026-08-03', end: '2026-08-10' }; // lunes a lunes, 8 días naturales
+    const naturalDays = computeCountedDates(range, 'CALENDAR_DAYS').length;
+    expect(determineCoverageProcess(naturalDays, DEFAULT_COVERAGE_POLICY)).toBe('COMPETITION'); // 8 días naturales
+    const workingDaysWithHoliday = computeCountedDates(range, 'WORKING_DAYS', { holidays: new Set(['2026-08-05', '2026-08-06', '2026-08-07']) }).length;
+    expect(determineCoverageProcess(workingDaysWithHoliday, DEFAULT_COVERAGE_POLICY)).toBe('ROTATION'); // laborales restantes tras feriados: 3, 4, 10
   });
 
   it('short rotation selects the first available candidate, not an unavailable one', () => {
