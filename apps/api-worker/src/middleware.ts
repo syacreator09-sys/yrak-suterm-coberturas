@@ -7,9 +7,16 @@ export async function correlation(context: Context<AppBindings>, next: Next): Pr
   context.header('x-correlation-id', context.get('correlationId'));
 }
 
+function developmentBypassEmail(context: Context<AppBindings>): string | undefined {
+  if (context.env.APP_ENV !== 'development') return undefined;
+  if (!context.env.DEV_AUTH_TOKEN) return undefined;
+  if (context.req.header('x-yrak-dev-token') !== context.env.DEV_AUTH_TOKEN) return undefined;
+  return context.req.header('x-yrak-user-email');
+}
+
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
   const accessEmail = context.req.header('Cf-Access-Authenticated-User-Email');
-  const developmentEmail = context.env.APP_ENV === 'development' ? context.req.header('x-yrak-user-email') : undefined;
+  const developmentEmail = developmentBypassEmail(context);
   const email = accessEmail ?? developmentEmail;
   if (!email) return context.json({ error: 'UNAUTHENTICATED' }, 401);
   const row = await context.env.DB.prepare(`SELECT id, organization_id, email, role, employee_id
