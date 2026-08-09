@@ -130,6 +130,40 @@ No se encontraron secretos expuestos, fugas de datos entre organizaciones/roles,
 3. **Datos reales de empleados (no piloto) y sus correos** — este entorno sólo tiene 3 empleados piloto con alias de un mismo Gmail y el grupo de pruebas manuales previo.
 4. **Rotar el token de API de Cloudflare usado para desplegar/administrar** — el token actual (`cfat_...`) está **escopeado a toda la cuenta** (se creó antes de que esta sesión asentara el principio de mínimo privilegio). Debe reemplazarse por un token acotado a cuenta/recurso específico **antes de que este proyecto maneje tráfico real de producción con datos reales de empleados**.
 
+## Entorno demo (post-cierre)
+
+Tras el cierre de esta auditoría (Tarea 7), se construyó un entorno Cloudflare `-demo` completo y separado de
+producción (organización `demo-cfe`, D1/R2/colas propios, mismo código) con datos ficticios diseñados a propósito
+para ejercitar los casos que este documento dejó como **NO APLICA**/**NO EJECUTADO** por falta de dato o rol de
+prueba. Ver:
+
+- `docs/DEMO_RUNBOOK.md` — guión de demo en 5 actos, ensayado en vivo contra el entorno real.
+- `docs/DEMO_RESULTS.md` — resultado completo de `docs/TEST_MATRIX.md` ejecutado contra ese entorno demo.
+
+Los casos `ELG-01..03`, `CMP-02..11`, `SEC-01` y `LVL-02`/`CAS-03`/`WF-*`/`DOC-*` que arriba seguían **NO APLICA** o
+**NO EJECUTADO** por no existir en este entorno de producción requisitos de nivel, un usuario `SUPERVISOR`, ni
+documentos/audio reales que cargar, **ahora tienen cobertura real ejecutada — en el entorno demo, con datos
+ficticios**. Esto **no cambia el estado de producción registrado arriba**, que sigue siendo exactamente el de esta
+Tarea 7: producción sigue sin requisitos de nivel, sin usuario `SUPERVISOR` real, sin segunda organización y sin
+documentos/audio reales cargados, y por lo tanto esos casos siguen pendientes de ejecución real contra producción
+cuando existan esos datos/roles ahí.
+
+Dos hallazgos nuevos surgieron de esa ejecución en demo, ambos de disponibilidad/completitud funcional y presentes
+también en producción (mismo código, misma configuración de proveedor):
+
+1. La transcripción de audio (`POST /v1/intake/attachments/:id/process` sobre un adjunto `audio/*`) falla con
+   `AI provider does not support transcribe` porque el proveedor de IA activo (`compatible` / NVIDIA NIM) nunca tuvo
+   configurado un `AI_COMPAT_TRANSCRIPTION_MODEL`. La extracción de PDF/imagen (vía Workers AI) sí funciona
+   correctamente y fue confirmada con un PDF real.
+2. La transición automática `SCHEDULED→ACTIVE` del `CoverageWorkflow` (Cloudflare Workflows) no se pudo observar en
+   vivo en demo pese a más de 15 minutos de espera real con una cobertura cuya fecha de inicio ya estaba varios días
+   en el pasado. El tramo `PENDING_VALIDATION→...→SCHEDULED` sí se confirmó en vivo repetidamente. Esto reproduce (sin
+   resolverlo) el mismo vacío que este documento ya señalaba para `WF-01` arriba ("no se forzó el reloj para
+   observarlo en esta sesión") — amerita una verificación aparte de si `CoverageWorkflow` se está disparando
+   correctamente en el Worker, con más tiempo de reloj real del que cabe en una sesión interactiva.
+
+Ver `docs/DEMO_RESULTS.md` para el detalle completo, caso por caso, con evidencia real.
+
 ## Política de cambios a partir de aquí
 
 No agregar reglas laborales nuevas por inferencia. Todo cambio de negocio debe:
