@@ -1,0 +1,36 @@
+{
+  "groups": [
+    {
+      "id": "demo-grupo-distribucion",
+      "name": "Distribución Demo",
+      "description": "Grupo ficticio para el demo — Distribución",
+      "levels": [
+        { "id": "demo-dist-n5", "number": 5, "name": "Nivel 5", "rankOrder": 1 },
+        { "id": "demo-dist-n6", "number": 6, "name": "Nivel 6", "rankOrder": 2 },
+        { "id": "demo-dist-n7", "number": 7, "name": "Nivel 7", "rankOrder": 3 },
+        { "id": "demo-dist-n8", "number": 8, "name": "Nivel 8", "rankOrder": 4 }
+      ],
+      "transitions": [
+        { "sourceLevelId": "demo-dist-n5", "targetLevelId": "demo-dist-n6" },
+        { "sourceLevelId": "demo-dist-n6", "targetLevelId": "demo-dist-n7" },
+        { "sourceLevelId": "demo-dist-n7", "targetLevelId": "demo-dist-n8" }
+      ]
+    },
+    {
+      "id": "demo-grupo-comercial",
+      "name": "Comercial Demo",
+      "description": "Grupo ficticio para el demo — Comercial",
+      "levels": [
+        { "id": "demo-com-n5", "number": 5, "name": "Nivel 5", "rankOrder": 1 },
+        { "id": "demo-com-n6", "number": 6, "name": "Nivel 6", "rankOrder": 2 },
+        { "id": "demo-com-n7", "number": 7, "name": "Nivel 7", "rankOrder": 3 },
+        { "id": "demo-com-n8", "number": 8, "name": "Nivel 8", "rankOrder": 4 }
+      ],
+      "transitions": [
+        { "sourceLevelId": "demo-com-n5", "targetLevelId": "demo-com-n6" },
+        { "sourceLevelId": "demo-com-n6", "targetLevelId": "demo-com-n7" },
+        { "sourceLevelId": "demo-com-n7", "targetLevelId": "demo-com-n8" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "items": [
+    { "id": "demo-user-supervisor", "displayName": "Supervisor Distribución (DEMO)", "role": "SUPERVISOR", "employeeId": null, "groupIds": ["demo-grupo-distribucion"] }
+  ]
+}
