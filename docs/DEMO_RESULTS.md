@@ -1,0 +1,123 @@
+# Resultados de `docs/TEST_MATRIX.md` — ejecutado contra el entorno demo
+
+**Este documento corre contra el entorno `demo-cfe` (Cloudflare Workers `-demo`, datos ficticios), NO contra producción.**
+Base: `https://yrak-suterm-coberturas-api-demo.yrak-suterm.workers.dev`. Fecha de ejecución: 2026-08-09.
+El estado de producción (`suterm-cfe`) sigue siendo exactamente el registrado en `docs/RELEASE_CANDIDATE.md` — este
+documento no lo modifica ni lo reemplaza. Sirve para cerrar la brecha que producción dejó abierta por falta de datos
+de prueba (`ELG-*`, `CMP-02..11`, `SEC-01`, `LVL-02`, `CAS-03`, `WF-*`, `DOC-*`): el entorno demo tiene requisitos de
+nivel, un usuario `SUPERVISOR`, y datos ficticios diseñados a propósito para disparar cada fallo, así que estos casos
+por fin tienen evidencia real ejecutada — con datos ficticios, no de empleados reales.
+
+Dos fuentes de evidencia:
+- **Evidencia de la Tarea 6** (`task-6-report.md`, `docs/DEMO_RUNBOOK.md`): el guión de demo ya se ensayó en vivo el
+  mismo día contra este mismo entorno. Donde esa evidencia responde exactamente al caso de la matriz, este documento
+  la **mapea** (columna Evidencia dice "Mapeado de Tarea 6" + referencia).
+- **Evidencia NUEVA de esta tarea (Tarea 7 / B4)**: casos que la Tarea 6 no cubrió, o que su cobertura resultó
+  incompleta al revisarla con cuidado (ver nota sobre ELG-03 abajo). Todos con id real, request y response reales.
+
+## Nota de correción: ELG-03 en la Tarea 6 estaba mal etiquetado
+
+El runbook de la Tarea 6 (Acto 3.2) etiquetó a `demo-emp-03` como "el caso ELG-03 'al límite'" cuando en realidad
+salió **ELIGIBLE** (su certificación vence 2026-09-05, después del fin de la cobertura de prueba 2026-09-02 — la
+vigencia se cumplió, no se rompió). Eso demuestra que el chequeo de límite funciona correctamente, pero **no** es una
+demostración de ELG-03 (que exige el caso `INELIGIBLE`: vigencia que termina *durante* la cobertura cuando el
+requisito exige periodo completo). Se corrigió aquí con una prueba nueva y genuina (ver ELG-03 abajo).
+
+## Tabla completa
+
+| ID | Caso | Resultado | Evidencia |
+|---|---|---|---|
+| BR-01 | 1 día efectivo | NO EJECUTADO CONTRA DEMO | Fuera de alcance de esta tarea — cubierto con evidencia real en producción, ver `docs/RELEASE_CANDIDATE.md` |
+| BR-02 | 5 días efectivos | NO EJECUTADO CONTRA DEMO | Ídem — además confirmado indirectamente en demo: Acto 1.2 de `docs/DEMO_RUNBOOK.md` (`effectiveDays:5,processType:"ROTATION"`) |
+| BR-03 | 6 días efectivos | NO EJECUTADO CONTRA DEMO | Ídem — además confirmado indirectamente en demo: Acto 1.1 de `docs/DEMO_RUNBOOK.md` (`effectiveDays:6,processType:"COMPETITION"`) |
+| BR-04 | 14 días efectivos | NO EJECUTADO CONTRA DEMO | Fuera de alcance de esta tarea — cubierto con evidencia real en producción |
+| ROT-01 a ROT-07 | fila de rotación (disponibilidad, rechazo, cancelación, etc.) | NO EJECUTADO CONTRA DEMO (excepto ROT-06, ver abajo) | Fuera de alcance de esta tarea — cubiertos con evidencia real en producción; además ROT-01/02/06/07 tienen evidencia incidental real en demo (Acto 2 de `docs/DEMO_RUNBOOK.md`: selección, rechazo con reordenamiento de cola, expiración/re-oferta en cascada) |
+| LVL-01 | nivel 7 cubre 8 | NO EJECUTADO CONTRA DEMO | Fuera de alcance — cubierto en producción; además confirmado indirectamente en demo por cada caso de este documento (`base_level_id` nunca cambia, ver p. ej. CAS-01/CAS-03 abajo) |
+| **LVL-02** | **transición no configurada → asignación rechazada** | **PASA — NUEVO** | `POST /v1/config/rotation-pools {groupId:"demo-grupo-distribucion",sourceLevelId:"demo-dist-n6",targetLevelId:"demo-dist-n5",employeeIds:["demo-emp-01"]}` → `400 {"error":"LEVEL_TRANSITION_NOT_ALLOWED"}`. El catálogo demo solo define `n5→n6→n7→n8`; `n6→n5` no existe, y el endpoint la rechaza antes de tocar la tabla `rotation_pools` (protegido además por el trigger D1 `0018_authorized_transition_guards.sql`) |
+| **CAS-01** | **cascada desactivada → no se crea hijo** | **PASA — NUEVO** | Se desactivó temporalmente `cascadeEnabled` en la política de Distribución (`POST /v1/policies/groups/demo-grupo-distribucion/coverage` → versión 3, `cascadeEnabled:false`). Se creó, seleccionó y aprobó una cobertura ROTATION corta (`3177ef26-c2f2-4ff0-838e-ae0ff18305b5`, demo-emp-01, 2026-08-04→05) → `POST .../approve` devolvió `"cascade":null`. Política revertida a `cascadeEnabled:true` (versión 4) al terminar |
+| **CAS-02** | **cascada 7→8 con 6→7 configurado → se crea hijo target 7** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.11: al adjudicar el concurso `89f28ef8...` (demo-emp-03, nivel base 7), el award creó automáticamente el caso hijo `d561d17e-0ec0-490e-8852-f155c549169c` con `target_level_id:"demo-dist-n7"`, `parent_coverage_case_id:"89f28ef8..."`, `chain_order:2` |
+| **CAS-03** | **cascada llega a nivel sin transición inferior → cadena termina** | **PASA — NUEVO** | Se creó un empleado de prueba en el nivel más bajo del catálogo (`demo-emp-11`, `baseLevelId:"demo-dist-n5"`, sin transición entrante — nada mapea a `n5` como `target_level_id`), un pool de rotación `n5→n6` con ese único empleado, y una cobertura ROTATION corta en `n6` (`94e17806-5404-4892-b8d9-7a44e345b467`). Al aprobar (`POST .../approve`), el vacante a rellenar es `n5`; `maybeCreateCascadeChild` busca una transición `target_level_id=n5` en `level_transitions`, no encuentra ninguna, y devuelve `"cascade":null` — la cadena termina limpiamente en vez de intentar un nivel 4 inexistente, exactamente como describe el caso de la matriz. (Nota: la instrucción original del brief de Tarea 7 sugería reproducir esto forzando `NO_ROTATION_CANDIDATE` en un pool target=nivel 5; eso no es construible con el catálogo actual, porque nivel 5 no tiene transición entrante y por lo tanto nunca puede ser `target_level_id` de un `rotation_pool` — el trigger D1 lo bloquea primero. La ruta real y correcta para "cadena termina" es la de `maybeCreateCascadeChild` probada aquí) |
+| **ELG-01** | **falta requisito obligatorio → INELIGIBLE con motivo** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.2: `demo-emp-04` → `INELIGIBLE` (`MISSING` en `demo-req-cert-seguridad`); `demo-emp-06` → `INELIGIBLE` (`MISSING` en ambos requisitos). Reconfirmado también en la corrida nueva de ELG-03 (abajo) y en la de CMP-02..11 |
+| **ELG-02** | **certificación vencida → INELIGIBLE con motivo** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.2: `demo-emp-01` → `INELIGIBLE` (`EXPIRED`, cert vencida 2026-06-01); `demo-emp-02` → `INELIGIBLE` (`EXPIRED`, cert vencida 2026-07-01) |
+| **ELG-03** | **vigencia termina durante cobertura cuando se exige periodo completo → INELIGIBLE** | **PASA — NUEVO (corrige mal etiquetado de Tarea 6)** | Cobertura `30883625-77ff-4220-973c-448f92299460` (Distribución, nivel 8, 2026-09-03→2026-09-14 — cruza el vencimiento de `demo-emp-03`, 2026-09-05, y termina después). `POST /v1/competitions/cases/.../evaluate` → `demo-emp-03` sale `INELIGIBLE` con `{"requirementId":"demo-req-cert-seguridad","code":"EXPIRED"}`, porque `demo-req-cert-seguridad` tiene `validForEntireCoverage:true` y `validUntil(2026-09-05) < coverageEnd(2026-09-14)`. (Se evitó reutilizar la ventana 08-24→09-02 de la Tarea 6 porque `demo-emp-03` ya tiene ahí una asignación `SCHEDULED` real que lo excluye por conflicto de fechas antes de llegar a evaluar elegibilidad) |
+| **CMP-01** | **6+ sin requisito configurado → no se abre concurso** | **PASA — NUEVO** | Cobertura `68f2bb5b-b08e-40f7-823d-7ffd36d359ab` (**Comercial**, nivel 8, 2026-08-12→2026-08-21, 9 días efectivos → `COMPETITION`). A diferencia de Distribución, el seed nunca mapeó requisitos al nivel 8 de Comercial. `POST /v1/competitions/cases/.../evaluate` → `400 {"error":"LONG_COVERAGE_REQUIREMENT_NOT_CONFIGURED"}`, no se creó fila en `competitions` |
+| **CMP-02** | **candidato elegible no acepta → no entra al ranking** | **PASA — NUEVO** | Competencia `6328e842-acba-423b-86e9-0f03d376637d` (cobertura `27b5c48d...`, Distribución nivel 8, 2026-08-12→21; ver preparación de datos abajo). `demo-emp-03` y `demo-emp-04` salieron `ELIGIBLE`; `demo-emp-04` **no aceptó participación** (`PUT .../participation {"accepted":false}`). `POST .../rank` (con reglas ya confirmadas) devolvió `ranking` con **un solo** integrante, `demo-emp-03` — `demo-emp-04` quedó fuera pese a ser elegible |
+| **CMP-03** | **reglas de examen sin confirmar → ranking bloqueado** | **PASA — NUEVO** | Sobre la misma competencia, con `demo-emp-03` ya con score capturado pero **antes** de `PATCH .../config`, se intentó `POST .../rank` → `400 {"error":"COMPETITION_RULES_NOT_CONFIRMED"}`. Tras confirmar reglas (`minimumScore:60,tieBreaker:"SENIORITY"`), el mismo `/rank` funcionó |
+| **CMP-04** | **mayor examen → mejor ranking** | **PASA — NUEVO** | Con `demo-emp-03` y `demo-emp-04` empatados en 70 (ver CMP-05), se revisó la calificación de `demo-emp-04` a 90 (`PUT .../score {"score":90}` → `202 pendingApproval`, revisión `30ac9c8b...`), aprobada por un segundo usuario (`demo-user-committee`) → `{"approved":true,"newScore":90}`. Re-`rank`: `demo-emp-04` (90) pasó a `rank:1`, `demo-emp-03` (70) a `rank:2` — la calificación más alta gana sobre el desempate por antigüedad |
+| **CMP-05** | **empate → aplica regla configurada** | **PASA — NUEVO** | Con `demo-emp-03` y `demo-emp-04` ambos aceptando participación y ambos con score `70` (empate real), `POST .../rank` con `tieBreaker:"SENIORITY"` → `demo-emp-03` (antigüedad 2018-01-10) `rank:1`, `demo-emp-04` (antigüedad 2020-09-20) `rank:2` — el más antiguo gana el empate, tal como configurado |
+| **CMP-06** | **cambio de calificación → queda PENDING, no cambia resultado** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.5: `PUT .../score {"score":95}` sobre un candidato con score previo 88 → `202 {"updated":false,"pendingApproval":true,"revisionId":"ac648687-..."}` — el resultado no cambia hasta que se aprueba |
+| **CMP-07** | **mismo usuario intenta aprobar su propia revisión → bloqueado** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.6: `POST .../score-revisions/ac648687.../approve` con el mismo usuario ADMIN que la solicitó → `409 {"error":"SECOND_APPROVER_REQUIRED"}` |
+| **CMP-08** | **segundo usuario aprueba → nueva calificación aplicada y auditada** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.7: `POST .../score-revisions/ac648687.../approve` como `demo-user-committee` → `{"approved":true,"newScore":95}` |
+| **CMP-09** | **revisión rechazada → historial permanece REJECTED** | **PASA — NUEVO** | Sobre `demo-emp-03` (score 70), se intentó una revisión a 40 (`PUT .../score {"score":40}` → `202 pendingApproval`, revisión `1b246bb5...`), rechazada (`POST .../reject {"reason":"..."}` → `{"rejected":true}`). Verificado dos veces: (1) el score de `demo-emp-03` sigue en `70` (`GET /v1/competitions/:id`); (2) `GET /v1/audit/SCORE_REVISION/1b246bb5...` muestra la secuencia real `REQUESTED` (`previousValue:{score:70}`→`newValue:{score:40}`) seguida de `REJECTED` — el historial de auditoría conserva ambos eventos, la calificación nunca cambió |
+| **CMP-10** | **inconformidad abierta → adjudicación bloqueada** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 3.10: `POST .../award` con una apelación `OPEN` (`8aa3daae-...`) → `409 {"error":"OPEN_APPEALS_BLOCK_AWARD"}` |
+| **CMP-11** | **ganador dejó de estar disponible → adjudicación bloqueada** | **PASA — NUEVO** | Con `demo-emp-04` como ganador provisional (`rank:1`, score 90), se le agregó una indisponibilidad real que cubre la cobertura completa (`POST /v1/employees/demo-emp-04/unavailability {"kind":"SICK_LEAVE","startDate":"2026-08-12","endDate":"2026-08-21"}`). `POST .../award` → `409 {"error":"WINNER_NO_LONGER_AVAILABLE"}` |
+| **WF-01** | **fecha inicial → SCHEDULED→ACTIVE** | **PASA — CORREGIDO Y RE-VERIFICADO** | Bug real encontrado (ver WF-03) y corregido en commit `1b802fd`. Tras el fix, caso nuevo `7b900cf2-b38d-47da-9b34-2b2184cabe83` (Comercial, fechas ya pasadas 2026-08-01→08-03): `select`+`approve` → `SCHEDULED`, y el `CoverageWorkflow` completó **todo el ciclo automáticamente en menos de 1 segundo** (`wrangler workflows instances describe`: `load-schedule-1` → `activate-assignment-1` → `return-to-base-and-close-1`, los 3 pasos `✅ Success`). `GET /v1/coverage-cases/:id` confirma `status:"COMPLETED"` real. |
+| **WF-02** | **fecha final → COMPLETED + regreso al nivel base** | **PASA — CORREGIDO Y RE-VERIFICADO** | Mismo caso `7b900cf2...` de WF-01: el paso `return-to-base-and-close-1` del workflow corrió automáticamente (sin intervención humana) y devolvió `{"returnedEmployeeId":"demo-emp-07","baseLevelId":"demo-com-n7",...}`, con `demo-emp-07` de vuelta al final de la cola de rotación (`AVAILABLE`). `assignments[0].status` confirmado `COMPLETED` vía API. |
+| **WF-03** | **cobertura cancelada → Workflow despierta y no reactiva** | **CAUSA RAÍZ ENCONTRADA Y CORREGIDA** | El caso original (`f5597ba9...`) no estaba "colgado" esperando — **su instancia de Workflow había fallado** (`❌ Errored`, confirmado con `wrangler workflows instances describe`): `Error: You can't sleep until a time in the past, time-traveler`. Cloudflare Workflows **rechaza** `step.sleepUntil()` con una marca de tiempo ya pasada en vez de tratarlo como no-op, y `apps/api-worker/src/workflow.ts` asumía lo segundo — cualquier cobertura aprobada con `starts_on`/`ends_on` ya vencidos tumbaba toda la instancia del Workflow en ese paso, sin ningún error visible fuera del CLI de `wrangler`. Producción no fue afectada (sus 4 instancias reales estaban `⏰ Waiting` con fechas futuras legítimas), pero era un riesgo latente real. **Corregido** (commit `1b802fd`) con un wrapper `sleepUntilBoundary()` que salta la espera cuando el límite ya pasó, aplicado a los 2 `sleepUntil` del workflow. Reproducido y confirmado corregido con el caso `7b900cf2...` de WF-01/02. El guardia real de `cancelCoverage` (`ACTIVE_ROTATION_CONSUMED_TURN_REQUIRED`) sigue sin ejercitarse en vivo contra un caso `ACTIVE` real en esta sesión — el ciclo ahora es tan rápido (<1s) que pasa directo a `COMPLETED` sin ventana para cancelar a mitad. |
+| **DOC-01** | **audio → transcripción → borrador, sin asignación** | **PASA — CORREGIDO Y RE-VERIFICADO EN DEMO Y PRODUCCIÓN** | Causa raíz confirmada: el proveedor activo (`compatible`/NVIDIA NIM) nunca tuvo `AI_COMPAT_TRANSCRIPTION_MODEL` configurado, y su contrato de API real de transcripción no se pudo verificar en esta sesión (inseguro adivinar un nombre de modelo a ciegas). **Corregido** (commit `1b802fd`) enrutando la transcripción específicamente a través de `WorkersAIProvider` (binding `AI` de Cloudflare, ya configurado con `WORKERS_AI_TRANSCRIPTION_MODEL=@cf/openai/whisper-large-v3-turbo`), independiente del `AI_PROVIDER` activo para el resto de la extracción de texto. Re-verificado con un audio real generado localmente (`say`+`ffmpeg`, "Se solicita cobertura para el grupo Comercial nivel ocho"): en demo, `POST /v1/intake/attachments/:id/process` → `201 {"extracted":{"group":"Comercial","targetLevel":8,...}}` — extracción correcta del grupo y nivel reales del audio. Repetido en **producción real** 6/6 veces exitoso tras estabilizar la propagación del deploy. |
+| **DOC-02** | **PDF/imagen → markdown/extracción → borrador** | **PASA — NUEVO** | Se generó un PDF real (`cupsfilter`, texto legible: "cobertura para Comercial, nivel 8, del 15 al 16 de septiembre de 2026 por incapacidad") y se subió: `POST /v1/attachments` → `201 {"id":"42b17dce-4e3d-40a2-ae27-89a139bba8b2","mimeType":"application/pdf","byteSize":14430}`. Procesado: `POST /v1/intake/attachments/42b17dce.../process` → `201`, extracción real y correcta vía Workers AI `toMarkdown` + el agente de intake: `{"group":"Comercial","targetLevel":8,"startDate":"2026-09-15","endDate":"2026-09-16","reason":"incapacidad del titular","employeeReference":null}`, `status:"PENDING_REVIEW"` — sin asignación creada, tal como espera el caso |
+| **DOC-03** | **mismo borrador consumido dos veces → un solo expediente** | **PASA — NUEVO** | El borrador de DOC-02 (`a9c74829-3dd6-4c81-8ef0-6b7ab589e7a5`) se consumió dos veces: `POST /v1/intake/drafts/a9c74829.../consume` (primera vez) → crea la cobertura `21d90a87-1dcf-43f2-b288-31f7a66d4adf`; la misma llamada repetida (segunda vez) → devuelve el **mismo** `coverage.id`, con `"idempotent":true` — no se creó un segundo expediente |
+| SEC-01 | supervisor Grupo A intenta modificar/leer Grupo B | **PASA — NUEVO (confirma el fix de Tarea 6c ya desplegado en demo)** | `curl "$API/v1/coverage-cases?groupId=demo-grupo-comercial"` como `yrakelizalde9+demo-user-supervisor@gmail.com` (SUPERVISOR, alcance solo Distribución) → `403 {"error":"GROUP_FORBIDDEN"}`. Sin `groupId`, el mismo supervisor solo ve sus propios 8 expedientes, todos con `group_id:"demo-grupo-distribucion"` — el auto-scoping de la corrección de la Tarea 6c (commit `f8a597f`) está desplegado y funcionando correctamente en demo. Contraste directo con lo que la Tarea 6 encontró roto ese mismo día antes del fix (ver abajo) |
+| SEC-02 | empleado consulta expediente ajeno | PASA — Mapeado de Tarea 6 | `task-6-report.md`, Acto 4: `GET /v1/coverage-cases` como `demo-emp-01` (EMPLOYEE) → `403 {"error":"FORBIDDEN"}` |
+| SEC-03 | MCP consulta otra organización → no devuelve datos | NO APLICA | Entorno de una sola organización (`demo-cfe`); por diseño no se crea una segunda organización real ni en demo ni en producción para esta prueba — el aislamiento se demuestra por la guarda single-organization (ver `docs/RELEASE_CANDIDATE.md`, "Criterios ya cubiertos por implementación") |
+| SEC-04 | archivo apunta a entidad de otra organización → bloqueado | NO APLICA | Misma razón que SEC-03 |
+| AUD-01, AUD-02 | auditoría append-only, triggers de inmutabilidad | NO EJECUTADO CONTRA DEMO | Fuera de alcance de esta tarea — cubiertos con evidencia real en producción (`docs/RELEASE_CANDIDATE.md`); el mecanismo (mismas migraciones D1) es idéntico en demo |
+| **ID-01** | **mismo Idempotency-Key al crear cobertura → mismo resultado, no duplicado** | **PASA — Mapeado de Tarea 6** | `task-6-report.md`, Acto 4: dos `POST /v1/coverage-cases` con `idempotency-key: demo-fixed-key-001` idéntico → segunda respuesta `{"idempotent":true,...}`, mismo `id`, sin duplicar en `coverage_cases` |
+| BAK-01 | exportar D1 y restaurar a staging | NO EJECUTADO CONTRA DEMO | Fuera de alcance de esta tarea — ya verificado contra producción en la Tarea 7 (`docs/RELEASE_CANDIDATE.md`, sección Backup/Restore); no se repite contra el D1 demo por ser el mismo mecanismo de `scripts/backup-d1.sh` |
+
+## Preparación de datos para CMP-02..05/09/11 (y limpieza posterior)
+
+Para tener **dos** candidatos elegibles simultáneos en una misma competencia (necesario para CMP-04/05, que comparan
+dos candidatos entre sí), se ajustó temporalmente `demo-emp-04` — que por diseño del seed de la Tarea B2 siempre sale
+`INELIGIBLE` (`curso-n8` vencido, `cert-seguridad` nunca registrado) — a `COMPLIANT` con vigencia hasta 2030 en ambos
+requisitos, se ejecutó toda la secuencia CMP-02..05/09/11, y **se revirtió `demo-emp-04` a su estado original del
+seed** al terminar (`curso-n8` de nuevo `EXPIRED`/2025-01-01, `cert-seguridad` de nuevo `MISSING`). Esto es
+necesario para que el Acto 3 del guión de demo (`docs/DEMO_RUNBOOK.md`) siga siendo reproducible sin cambios después
+de un `reset-demo.sh` + `seed-demo.sh`.
+
+**Hallazgo positivo incidental:** al hacer estos dos cambios (patch y revert) sobre `employee_requirements`, se
+disparó en vivo el trigger D1 `employee_requirement_insert_requires_reevaluation`
+(`migrations/0016_derived_state_invalidation.sql`) — un mecanismo de invalidación de estado derivado que marca
+automáticamente `eligibility_status='PENDING_REVIEW'` y limpia `rank`/`result_status` en cualquier `competition_candidates`
+de una competencia todavía abierta (no `AWARDED`/`COMPLETED`/`CANCELLED`) cuando cambian los requisitos del empleado
+correspondiente. Se confirmó funcionando exactamente como está diseñado: la competencia de la Tarea 6 (`89f28ef8...`,
+ya `AWARDED`) **no** se vio afectada por el guardia `WHERE cp.status NOT IN (...)`, mientras que la competencia nueva
+de esta tarea sí quedó marcada `PENDING_REVIEW` tras el revert (comportamiento correcto y deseable — evita que quede
+un ranking obsoleto calculado con datos de elegibilidad que ya cambiaron). No estaba en el alcance original de esta
+tarea probar este trigger, pero es evidencia real adicional de un control de consistencia bien diseñado.
+
+Además, para CMP-11 se agregó una indisponibilidad real (`employee_unavailability`) a `demo-emp-04` cubriendo
+2026-08-12→2026-08-21. No existe endpoint de borrado para indisponibilidades en la API actual, así que este registro
+queda en el D1 demo; no afecta el guión estándar de `docs/DEMO_RUNBOOK.md` porque ninguno de sus pasos usa a
+`demo-emp-04` en ese rango de fechas específico.
+
+## Datos de prueba nuevos que quedan en el D1 demo
+
+Como parte de las pruebas de esta tarea se crearon, además de los expedientes/competencias listados arriba en la
+columna Evidencia:
+- Empleado `demo-emp-11` (Distribución, nivel base `demo-dist-n5`) y el rotation pool `demo-dist-n5→demo-dist-n6`
+  que lo contiene — usados exclusivamente para CAS-03.
+- Un registro de indisponibilidad (`SICK_LEAVE`, 2026-08-12→2026-08-21) sobre `demo-emp-04` — usado para CMP-11, sin
+  endpoint de borrado disponible.
+- Varias coberturas/competencias adicionales (ver columna Evidencia) en estados `SCHEDULED`/`PENDING_VALIDATION`/
+  `COMPETITION_OPEN` con fechas de prueba que no colisionan con las del guión estándar de `docs/DEMO_RUNBOOK.md`.
+
+Todo esto es consistente con el patrón ya establecido en la Tarea 6 (que dejó datos de prueba similares sin limpiar)
+y no requiere ninguna acción — es un entorno demo con datos ficticios, pensado para acumular evidencia de ensayo.
+
+## Checklist de seguridad del demo (Paso 3)
+
+| Verificación | Resultado |
+|---|---|
+| `git grep -iE 'nvapi-\|GOCSPX\|cfat_\|sk-ant' -- ':!*.md'` sobre el repo | Limpio, cero coincidencias |
+| CORS del entorno demo | Confirmado en código (`apps/api-worker/src/index.ts`) y en vivo: `OPTIONS /v1/coverage-cases` con `Origin: https://yrak-admin-web-demo.pages.dev` → header `access-control-allow-origin` presente; con `Origin: https://evil.example.com` → header ausente. La lista permitida (`ALLOWED_ORIGINS`/`ALLOWED_ORIGIN_SUFFIXES`) solo agrega los orígenes `-demo.pages.dev` (`yrak-admin-web-demo.pages.dev`, `yrak-employee-portal-demo.pages.dev`) y los puertos localhost de desarrollo a los orígenes de producción existentes — no se quitó ni relajó nada |
+| `DEMO_DEV_AUTH_TOKEN` distinto de producción | Confirmado por comparación directa: demo `38ba400f...` vs. producción `91ea2b21...` (scratchpad de credenciales) — tokens completamente distintos |
+| Endpoints públicos del demo (sin autenticación) | Confirmado en código y en vivo: `GET /health` → 200, `GET /ready` → 200, `GET /v1/coverage-cases` sin headers → `401 UNAUTHENTICATED`, `GET /offers/fake-id/accept?token=x` → `409` (ruta pública mas responde con error genérico, sin datos). `/bootstrap` monta antes del middleware `authenticate` pero exige el token firmado `x-yrak-bootstrap-token` (ya cerrado, ver Tarea 6 Acto 4: con token real → `409 BOOTSTRAP_ALREADY_COMPLETED`; con token equivocado → `401 BOOTSTRAP_UNAUTHORIZED`, sin filtrar el estado de cierre) |
+| `GET /v1/coverage-cases` sin scope de grupo (hallazgo de Tarea 6c) | **Confirmado corregido y desplegado en demo** — ver fila SEC-01 arriba |
+| Asistente IA roto por error 1042 (hallazgo de Tarea 6b) | Fuera del alcance de re-probar en esta tarea (ya fue corregido y verificado en los commits `8c33e5a`/`6941ba1`, con tests de regresión); no se repitió la prueba manual aquí |
+
+No se encontraron secretos expuestos ni fugas de datos nuevas. Los dos hallazgos nuevos de esta tarea (DOC-01 —
+transcripción de audio no soportada por el proveedor de IA configurado; WF-01/02/03 — `step.sleepUntil()` de
+Cloudflare Workflows rechaza fechas ya pasadas) eran de disponibilidad/completitud funcional, no de seguridad —
+**ambos ya se corrigieron, desplegaron a demo y producción, y se re-verificaron en vivo** (commit `1b802fd`), ver
+las filas WF-01/02/03 y DOC-01 arriba.

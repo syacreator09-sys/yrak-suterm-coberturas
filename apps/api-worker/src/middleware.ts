@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 import type { AppBindings, AuthUser } from './env.js';
+import { verifyGuestToken } from './services/guest-session-service.js';
 
 export async function correlation(context: Context<AppBindings>, next: Next): Promise<void> {
   context.set('correlationId', context.req.header('x-correlation-id') ?? crypto.randomUUID());
@@ -15,6 +16,14 @@ function developmentBypassEmail(context: Context<AppBindings>): string | undefin
 }
 
 export async function authenticate(context: Context<AppBindings>, next: Next): Promise<Response | void> {
+  const guestToken = context.req.header('x-yrak-guest-token');
+  if (guestToken) {
+    const guest = await verifyGuestToken(context.env, guestToken);
+    if (!guest) return context.json({ error: 'GUEST_TOKEN_INVALID' }, 401);
+    context.set('user', guest);
+    await next();
+    return;
+  }
   const accessEmail = context.req.header('Cf-Access-Authenticated-User-Email');
   const developmentEmail = developmentBypassEmail(context);
   const email = accessEmail ?? developmentEmail;

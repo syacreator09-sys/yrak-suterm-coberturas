@@ -1,0 +1,14 @@
+{
+  "items": [
+    { "id": "demo-emp-01", "employeeNumber": "D-001", "name": "Ana Torres (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2012-03-01" },
+    { "id": "demo-emp-02", "employeeNumber": "D-002", "name": "Luis Ramírez (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2015-06-15" },
+    { "id": "demo-emp-03", "employeeNumber": "D-003", "name": "María Gómez (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2018-01-10" },
+    { "id": "demo-emp-04", "employeeNumber": "D-004", "name": "Jorge Salas (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2020-09-20" },
+    { "id": "demo-emp-05", "employeeNumber": "D-005", "name": "Sofía Herrera (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2022-02-01" },
+    { "id": "demo-emp-06", "employeeNumber": "D-006", "name": "Carlos Peña (DEMO)", "groupId": "demo-grupo-distribucion", "baseLevelId": "demo-dist-n7", "seniorityDate": "2024-04-11" },
+    { "id": "demo-emp-07", "employeeNumber": "C-001", "name": "Diana Ruiz (DEMO)", "groupId": "demo-grupo-comercial", "baseLevelId": "demo-com-n7", "seniorityDate": "2013-07-01" },
+    { "id": "demo-emp-08", "employeeNumber": "C-002", "name": "Roberto Díaz (DEMO)", "groupId": "demo-grupo-comercial", "baseLevelId": "demo-com-n7", "seniorityDate": "2017-05-05" },
+    { "id": "demo-emp-09", "employeeNumber": "C-003", "name": "Patricia Luna (DEMO)", "groupId": "demo-grupo-comercial", "baseLevelId": "demo-com-n7", "seniorityDate": "2019-11-30" },
+    { "id": "demo-emp-10", "employeeNumber": "C-004", "name": "Fernando Cruz (DEMO)", "groupId": "demo-grupo-comercial", "baseLevelId": "demo-com-n7", "seniorityDate": "2023-08-14" }
+  ]
+}

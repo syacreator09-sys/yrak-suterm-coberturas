@@ -121,7 +121,17 @@ Ninguno de los tres afectó las reglas de negocio centrales (nivel base inmutabl
 | Envelope de error — JSON malformado, campos faltantes, ID inexistente, ruta inexistente | Ningún caso expuso stack trace; mensajes cortos y consistentes (`Malformed JSON in request body`, `ZodError` estructurado, `GROUP_NOT_FOUND`, `404 Not Found`) |
 | Sin autenticación (`GET /v1/coverage-cases` sin headers) | `401 UNAUTHENTICATED` |
 
-No se encontraron secretos expuestos, fugas de datos entre organizaciones/roles, ni fugas de stack traces. Los dos hallazgos de la sección anterior son de consistencia de datos derivados, no de seguridad/autorización.
+No se encontraron secretos expuestos, fugas de datos entre organizaciones/roles, ni fugas de stack traces **en las pruebas ejecutadas en esta auditoría (Tarea 7) con el catálogo de checks de arriba**. Los dos hallazgos de la sección anterior son de consistencia de datos derivados, no de seguridad/autorización. **Actualización posterior:** el ensayo del entorno demo (ver sección siguiente) sí encontró una fuga real de datos entre grupos en `GET /v1/coverage-cases`, en el mismo código de producción — ver "3 bugs reales encontrados y corregidos" abajo. Esta conclusión de la Tarea 7 describe únicamente lo que se probó en ese momento, no una garantía retroactiva de que no había fugas de autorización en absoluto.
+
+## 5 bugs reales encontrados y corregidos durante el ensayo del entorno demo (post-Tarea 7)
+
+Durante la construcción y ensayo del entorno `-demo` (ver sección "Entorno demo" abajo) se encontraron y corrigieron 5 defectos reales en código ya desplegado a producción — no introducidos por el trabajo del entorno demo, solo descubiertos por él. Los cinco se desplegaron y verificaron en vivo tanto en demo como en **producción real**.
+
+1. **Trigger D1 roto** (`migrations/0016_derived_state_invalidation.sql`): dos triggers de `rotation_queue_entries` escribían una columna `updated_at` que esa tabla nunca tuvo (solo tiene `version`). SQLite valida el cuerpo del trigger contra el esquema en tiempo de preparación de la sentencia para cualquier `INSERT ... ON CONFLICT DO UPDATE` cuyo `SET` toque una columna vigilada — así que **`POST /v1/import/employees` fallaba el 100% de las veces**, incluso en un INSERT limpio sin conflicto real. Corregido con la migración `0021_fix_rotation_queue_entries_trigger_column.sql` (recrea los triggers sin la escritura inválida, preservando el resto del comportamiento byte a byte). Verificado en producción: la misma llamada que antes daba `500` ahora devuelve `{"imported":1,"errors":[]}`, con los datos del empleado sin alterar.
+2. **Fuga de datos entre grupos**: `GET /v1/coverage-cases` nunca leía el parámetro `groupId` ni llamaba `assertGroupAccess` — cualquier `SUPERVISOR`/`COMMITTEE`/`OPERATOR` veía los expedientes de **todos** los grupos de la organización, no solo el suyo. Confirmado con una lectura cruzada real (supervisor de Distribución leyendo un expediente de Comercial). Corregido para reflejar exactamente el modelo de privilegios que `assertGroupAccess` ya usa en el resto del archivo — revisión de seguridad dedicada con veredicto **SAFE TO DEPLOY** antes de desplegar. El mismo patrón se encontró también en `GET /v1/calendar/holidays` (escrito en esta misma rama) durante la revisión final de toda la rama, y se corrigió igual antes de este cierre.
+3. **Asistente IA roto en todo despliegue real**: `POST /v1/assistant` fallaba el 100% de las veces con el error de Cloudflare 1042 — un `fetch()` de un Worker a la URL pública `*.workers.dev` de otro Worker de la misma cuenta, patrón que Cloudflare bloquea. Invisible en `wrangler dev` local (no aplica esa restricción), por eso pasó desapercibido en la sesión que implementó originalmente el asistente. Corregido con un Service Binding de Cloudflare Workers en vez de una URL, con tests de regresión agregados. Verificado 5/5 en producción real tras el despliegue.
+4. **`CoverageWorkflow` no transicionaba `SCHEDULED→ACTIVE` para coberturas con fecha de inicio ya vencida al aprobarse**: no era un problema de aprovisionamiento — la instancia real del Workflow estaba `❌ Errored` (`wrangler workflows instances describe`): *"You can't sleep until a time in the past, time-traveler"*. Cloudflare Workflows rechaza `step.sleepUntil()` con una marca de tiempo ya pasada en vez de tratarlo como no-op, y el código asumía lo segundo. Producción no fue afectada hasta ahora (sus instancias reales usaban fechas futuras legítimas), pero era un riesgo latente real para cualquier aprobación tardía. Un primer wrapper (que leía `Date.now()` directamente en el cuerpo de `run()` para decidir si dormir) resolvió el error pero tenía una falla real de seguridad ante replay: Cloudflare Workflows reejecuta `run()` completo en cada reanudación, y una lectura directa de `Date.now()` puede decidir distinto entre la ejecución original y el replay al despertar, desincronizando la secuencia de `step.*` del registro durable. Corregido memoizando la decisión (`sleep`/`no-sleep`) dentro de un `step.do()` (extraído a `workflow-scheduling.ts`, con su propio test unitario que prueba la propiedad de consistencia ante replay). Verificado en vivo con datos reales del entorno demo: dos instancias reales que habían quedado `❌ Errored` con el bug original se reiniciaron (`wrangler workflows instances restart`) ya con el código corregido desplegado. La primera (`coverage-3177ef26`, ambos límites ya pasados) completó el ciclo `SCHEDULED→ACTIVE→COMPLETED` sin error. La segunda (`coverage-f5597ba9`, límite de inicio pasado pero límite de fin real todavía futuro) confirmó **ambos caminos en la misma ejecución**: `wait-for-coverage-start-decision` memoizó `false` (saltó el sleep, activó de inmediato) y `wait-for-coverage-end-decision` memoizó `true`, tras lo cual la instancia quedó genuinamente `💤 Sleeping` (vía un `step.sleepUntil` real, sin error) hasta el límite de fin — exactamente el mecanismo de frontera futura que motivó la corrección, probado en producción real de Cloudflare Workflows, no solo en el test unitario.
+5. **Transcripción de audio no soportada**: el proveedor de IA activo (NVIDIA NIM) nunca tuvo un modelo de transcripción configurado, y su contrato de API real para audio no se pudo verificar en esta sesión (inseguro adivinar un modelo a ciegas). Corregido enrutando la transcripción específicamente al binding de Cloudflare Workers AI (`@cf/openai/whisper-large-v3-turbo`, ya configurado y probado), sin tocar el proveedor usado para el resto de la extracción de texto. Verificado con un audio real generado localmente, en demo y en producción (6/6 en producción).
 
 ## Pendientes bloqueados para producción real (no resolubles sin dominio/decisión humana)
 
@@ -129,6 +139,40 @@ No se encontraron secretos expuestos, fugas de datos entre organizaciones/roles,
 2. **`ANTHROPIC_API_KEY`** — Anthropic/`claude-sonnet-5` está completamente cableado como proveedor alterno pero inactivo; activarlo es un cambio de un secreto + una variable, sin tocar código.
 3. **Datos reales de empleados (no piloto) y sus correos** — este entorno sólo tiene 3 empleados piloto con alias de un mismo Gmail y el grupo de pruebas manuales previo.
 4. **Rotar el token de API de Cloudflare usado para desplegar/administrar** — el token actual (`cfat_...`) está **escopeado a toda la cuenta** (se creó antes de que esta sesión asentara el principio de mínimo privilegio). Debe reemplazarse por un token acotado a cuenta/recurso específico **antes de que este proyecto maneje tráfico real de producción con datos reales de empleados**.
+
+## Entorno demo (post-cierre)
+
+Tras el cierre de esta auditoría (Tarea 7), se construyó un entorno Cloudflare `-demo` completo y separado de
+producción (organización `demo-cfe`, D1/R2/colas propios, mismo código) con datos ficticios diseñados a propósito
+para ejercitar los casos que este documento dejó como **NO APLICA**/**NO EJECUTADO** por falta de dato o rol de
+prueba. Ver:
+
+- `docs/DEMO_RUNBOOK.md` — guión de demo en 5 actos, ensayado en vivo contra el entorno real.
+- `docs/DEMO_RESULTS.md` — resultado completo de `docs/TEST_MATRIX.md` ejecutado contra ese entorno demo.
+
+Los casos `ELG-01..03`, `CMP-02..11`, `SEC-01` y `LVL-02`/`CAS-03`/`WF-*`/`DOC-*` que arriba seguían **NO APLICA** o
+**NO EJECUTADO** por no existir en este entorno de producción requisitos de nivel, un usuario `SUPERVISOR`, ni
+documentos/audio reales que cargar, **ahora tienen cobertura real ejecutada — en el entorno demo, con datos
+ficticios**. Esto **no cambia el estado de producción registrado arriba**, que sigue siendo exactamente el de esta
+Tarea 7: producción sigue sin requisitos de nivel, sin usuario `SUPERVISOR` real, sin segunda organización y sin
+documentos/audio reales cargados, y por lo tanto esos casos siguen pendientes de ejecución real contra producción
+cuando existan esos datos/roles ahí.
+
+Dos hallazgos nuevos surgieron de esa ejecución en demo, ambos de disponibilidad/completitud funcional y presentes
+también en producción (mismo código, misma configuración de proveedor):
+
+1. La transcripción de audio (`POST /v1/intake/attachments/:id/process` sobre un adjunto `audio/*`) falla con
+   `AI provider does not support transcribe` porque el proveedor de IA activo (`compatible` / NVIDIA NIM) nunca tuvo
+   configurado un `AI_COMPAT_TRANSCRIPTION_MODEL`. La extracción de PDF/imagen (vía Workers AI) sí funciona
+   correctamente y fue confirmada con un PDF real.
+2. ~~La transición automática `SCHEDULED→ACTIVE` del `CoverageWorkflow` (Cloudflare Workflows) no se pudo observar en
+   vivo en demo pese a más de 15 minutos de espera real con una cobertura cuya fecha de inicio ya estaba varios días
+   en el pasado.~~ **Actualización**: causa raíz identificada y corregida — ver hallazgo 4 en "5 bugs reales" arriba.
+   No era un problema de disparo del Worker; las instancias reales estaban `❌ Errored` porque Cloudflare Workflows
+   rechaza `step.sleepUntil()` con una marca de tiempo ya pasada. Verificado en vivo: dos instancias `Errored` reales
+   del entorno demo se reiniciaron con el código corregido y completaron `SCHEDULED→ACTIVE→COMPLETED` sin error.
+
+Ver `docs/DEMO_RESULTS.md` para el detalle completo, caso por caso, con evidencia real.
 
 ## Política de cambios a partir de aquí
 
