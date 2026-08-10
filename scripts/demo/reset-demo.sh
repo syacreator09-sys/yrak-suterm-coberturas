@@ -24,7 +24,9 @@ DELETE FROM competition_score_revisions;
 DELETE FROM competition_candidates;
 DELETE FROM competitions;
 DELETE FROM coverage_cases;
-UPDATE rotation_queue_entries SET status='AVAILABLE', queue_position=(SELECT COUNT(*) FROM rotation_queue_entries r2 WHERE r2.pool_id=rotation_queue_entries.pool_id AND r2.employee_id<=rotation_queue_entries.employee_id);
+DELETE FROM holidays;
+UPDATE rotation_queue_entries SET status='AVAILABLE', queue_position=queue_position+1000000;
+UPDATE rotation_queue_entries SET queue_position=(SELECT COUNT(*) FROM rotation_queue_entries r2 WHERE r2.pool_id=rotation_queue_entries.pool_id AND r2.employee_id<=rotation_queue_entries.employee_id);
 "
 echo "Datos transaccionales del demo borrados. Re-corriendo seed..." >&2
 cd -

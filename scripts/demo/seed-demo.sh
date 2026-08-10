@@ -79,8 +79,25 @@ EMP_USERS=$(jq -c --arg base "$ALIAS_BASE" --arg domain "$ALIAS_DOMAIN" \
 curl_json POST /v1/import/users "$EMP_USERS" | jq -c .
 
 echo "== [7/9] Pools de rotación 7->8 en ambos grupos ==" >&2
-curl_json POST /v1/config/rotation-pools "$(jq -nc '{groupId:"demo-grupo-distribucion",sourceLevelId:"demo-dist-n7",targetLevelId:"demo-dist-n8",employeeIds:["demo-emp-01","demo-emp-02","demo-emp-03","demo-emp-04","demo-emp-05","demo-emp-06"]}')" | jq -c .
-curl_json POST /v1/config/rotation-pools "$(jq -nc '{groupId:"demo-grupo-comercial",sourceLevelId:"demo-com-n7",targetLevelId:"demo-com-n8",employeeIds:["demo-emp-07","demo-emp-08","demo-emp-09","demo-emp-10"]}')" | jq -c .
+ensure_rotation_pool() {
+  # POST /v1/config/rotation-pools has no idempotency (plain INSERT, UNIQUE
+  # on group_id+source_level_id+target_level_id) — reset-demo.sh intentionally
+  # preserves rotation_pools/rotation_queue_entries across a reset (only
+  # resets their status/position), so re-running this step on top of an
+  # already-seeded demo must skip pools that already exist instead of
+  # re-POSTing them.
+  local group_id="$1" source_level="$2" target_level="$3" employee_ids_json="$4" existing
+  existing=$(curl -sS "${YRAK_API_BASE}/v1/config/groups/${group_id}/rotation-pools" \
+    -H "x-yrak-user-email: ${YRAK_USER_EMAIL}" -H "x-yrak-dev-token: ${YRAK_DEV_TOKEN}" \
+    | jq -c --arg src "$source_level" --arg tgt "$target_level" '[.items[]? | select(.source_level_id==$src and .target_level_id==$tgt)] | first // empty')
+  if [ -n "$existing" ]; then
+    echo "{\"skipped\":true,\"existing\":$existing}"
+  else
+    curl_json POST /v1/config/rotation-pools "$(jq -nc --arg g "$group_id" --arg s "$source_level" --arg t "$target_level" --argjson e "$employee_ids_json" '{groupId:$g,sourceLevelId:$s,targetLevelId:$t,employeeIds:$e}')" | jq -c .
+  fi
+}
+ensure_rotation_pool demo-grupo-distribucion demo-dist-n7 demo-dist-n8 '["demo-emp-01","demo-emp-02","demo-emp-03","demo-emp-04","demo-emp-05","demo-emp-06"]'
+ensure_rotation_pool demo-grupo-comercial demo-com-n7 demo-com-n8 '["demo-emp-07","demo-emp-08","demo-emp-09","demo-emp-10"]'
 
 echo "== [8/9] Política demo (timer 2min, cascada, WORKING_DAYS) para ambos grupos ==" >&2
 POLICY='{"dayCountingMode":"WORKING_DAYS","rejectionConsumesTurn":true,"cascadeEnabled":true,"cascadeMaximumDepth":3,"rotationOfferTimeoutMinutes":2,"effectiveFrom":"2020-01-01"}'

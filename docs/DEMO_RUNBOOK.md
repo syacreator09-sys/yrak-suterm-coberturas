@@ -5,7 +5,7 @@
 - Dashboard: https://yrak-admin-web-demo.pages.dev
 - Portal del trabajador: https://yrak-employee-portal-demo.pages.dev
 
-**Antes de cada ensayo:** `./scripts/demo/reset-demo.sh` (deja los datos ficticios frescos, sin coberturas/notificaciones de una corrida anterior). **Conocido:** este script no vacía la tabla `holidays` — cada corrida duplica los 14 feriados MX (14 → 28 → 42…). No lo corras más de una vez sin limpiar `holidays` a mano hasta que se corrija.
+**Antes de cada ensayo:** `./scripts/demo/reset-demo.sh` (deja los datos ficticios frescos, sin coberturas/notificaciones de una corrida anterior; también vacía y resiembra `holidays`, corregido — antes duplicaba los 14 feriados MX en cada corrida). También corregido: el paso de pools de rotación del seed ahora es idempotente (antes fallaba con `UNIQUE constraint` en la segunda corrida porque `reset-demo.sh` preserva `rotation_pools`/`rotation_queue_entries` a propósito, solo reseteando su estado).
 
 **Login:** correo `yrakelizalde9@gmail.com` (Secretario/ADMIN) o cualquier `yrakelizalde9+demo-emp-XX@gmail.com` (empleado), token `DEMO_DEV_AUTH_TOKEN` del scratchpad. Supervisor: `yrakelizalde9+demo-user-supervisor@gmail.com`.
 
