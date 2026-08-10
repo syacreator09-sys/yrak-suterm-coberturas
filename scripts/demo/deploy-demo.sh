@@ -15,10 +15,18 @@ echo "== api-worker (demo) ==" >&2
 echo "== agent-worker (demo) ==" >&2
 (cd "$ROOT_DIR/apps/agent-worker" && npx wrangler deploy --env demo)
 
+# apps/admin-web/.env.local (and employee-portal's, if present) is meant only
+# for local `pnpm dev` against production and bakes in production's own
+# VITE_DEV_USER_EMAIL/VITE_DEV_AUTH_TOKEN. Vite's dotenv loader never
+# overrides a variable already present in the shell environment, so exporting
+# both as empty strings here neutralizes that file for this build only —
+# without it, the demo bundle silently ships with production's dev-auth
+# token baked into a public static site, and skips the intended login form
+# entirely (empty string is falsy, so hasDevSession correctly stays false).
 echo "== admin-web (demo) ==" >&2
-(cd "$ROOT_DIR/apps/admin-web" && VITE_API_BASE_URL="$API_URL" pnpm build && npx wrangler pages deploy dist --project-name yrak-admin-web-demo --branch main --commit-dirty=true)
+(cd "$ROOT_DIR/apps/admin-web" && VITE_API_BASE_URL="$API_URL" VITE_DEV_USER_EMAIL="" VITE_DEV_AUTH_TOKEN="" pnpm build && npx wrangler pages deploy dist --project-name yrak-admin-web-demo --branch main --commit-dirty=true)
 
 echo "== employee-portal (demo) ==" >&2
-(cd "$ROOT_DIR/apps/employee-portal" && VITE_API_BASE_URL="$API_URL" pnpm build && npx wrangler pages deploy dist --project-name yrak-employee-portal-demo --branch main --commit-dirty=true)
+(cd "$ROOT_DIR/apps/employee-portal" && VITE_API_BASE_URL="$API_URL" VITE_DEV_USER_EMAIL="" VITE_DEV_AUTH_TOKEN="" pnpm build && npx wrangler pages deploy dist --project-name yrak-employee-portal-demo --branch main --commit-dirty=true)
 
 echo "Demo redeploy completo. $API_URL" >&2
